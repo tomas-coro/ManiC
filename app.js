@@ -1,4 +1,4 @@
-import {TYPES,MESI,GIORNI,DOW,isoDate,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice} from './logic.js';
+import {TYPES,MESI,GIORNI,DOW,isoDate,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice,TOGETHER_SINCE,balance,monthKey,monthsStats,prevMonthKey,prevOf,daysTogether,togetherLabel} from './logic.js';
 import {FLAT} from './icons.js';
 import * as api from './api.js';
 import {fetchSignature,shortVersion} from './update.js';
@@ -16,13 +16,19 @@ const st={
   members:[],
   me:null,
   events:[],
+  all:null,
+  allErr:'',
+  allLoading:false,
+  page:null,
+  openMonth:null,
+  recapOff:false,
   lastDate:null,
   y:now.getFullYear(),
   m:now.getMonth(),
   sel:null,
   sheet:null,
   adding:false,
-  counts:{sesso:0,pompino:0,leccata:0,anale:0},
+  counts:{sesso:0,pompino:0,leccata:0,anale:0,ditalini:0},
   whoChoice:'both',
   note:'',
   filter:null,
@@ -44,6 +50,9 @@ const icon=(t,cls)=>'<svg class="ic '+(cls||'')+'" viewBox="0 0 32 32" aria-hidd
 const wm=full=>'<img class="wmi" src="assets/wordmark-'+(full?'completo':'lettere')+'.png" alt="ManiC">';
 const LOCK='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 const GEAR='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
+
+const BARS='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V11M12 20V4M19 20v-6"/></svg>';
+const RECAP_KEY='manic-recap';
 
 const total=()=>TYPES.reduce((n,t)=>n+st.counts[t],0);
 
@@ -177,8 +186,77 @@ function settings(){
     +'<button class="cta ghost" data-act="logout">Esci dall\'account</button>';
 }
 
+function recapSeen(){
+  if(st.recapOff) return true;
+  try{return localStorage.getItem(RECAP_KEY)===monthKey(todayIso);}catch{return false;}
+}
+
+function dl(a,b){
+  if(b===null) return '';
+  if(a>b) return '<span class="dl up">&#9650; '+(a-b)+'</span>';
+  if(a<b) return '<span class="dl dn">&#9660; '+(b-a)+'</span>';
+  return '<span class="dl dn">=</span>';
+}
+
+function rowsHtml(c,p){
+  return TYPES.map(t=>'<div class="row">'+icon(t)+'<span class="nm">'+t+'</span>'+(p?dl(c[t],p.counts[t]):'')+'<span class="n">'+c[t]+'</span></div>').join('');
+}
+
+function balHtml(c){
+  const b=balance(c,st.me.slot);
+  const s=b.dati+b.ricevuti;
+  if(!s) return '';
+  const txt=b.diff>0?'Hai dato <b>'+b.diff+' in più</b> di quanto hai ricevuto.':b.diff<0?'Hai ricevuto <b>'+(-b.diff)+' in più</b> di quanto hai dato.':'Ricevuto e dato <b>in pari</b>.';
+  return '<div class="bal"><p>'+txt+'</p><div class="bb"><i class="r" style="width:'+(b.ricevuti/s*100)+'%"></i><i class="g" style="width:'+(b.dati/s*100)+'%"></i></div><div class="bl"><span>Ricevuti '+b.ricevuti+'</span><span>Dati '+b.dati+'</span></div></div>';
+}
+
+function stackHtml(s){
+  return '<span class="stk">'+TYPES.filter(t=>s.counts[t]).map(t=>'<i style="width:'+(s.counts[t]/s.total*100)+'%;background:var(--c-'+t+')"></i>').join('')+'</span>';
+}
+
+function monthItem(m,i,list){
+  const open=st.openMonth===m.key;
+  const cur=m.key===monthKey(todayIso);
+  const p=cur?null:prevOf(list,i);
+  return '<div class="mo'+(open?' open':'')+'"><button class="mh" data-act="mo" data-v="'+m.key+'" aria-expanded="'+open+'"><span class="mn">'+MESI[m.m]+' '+m.y+'<small>'+(cur?'in corso':m.activeDays+' giorni attivi')+'</small>'+stackHtml(m)+'</span>'+dl(m.total,p?p.total:null)+'<span class="tt">'+m.total+'</span><span class="chv">&rsaquo;</span></button><div class="mb">'+rowsHtml(m.counts,p)+balHtml(m.counts)+'</div></div>';
+}
+
+function togetherHtml(){
+  const [y,m,d]=TOGETHER_SINCE.split('-').map(Number);
+  return '<div class="tg"><b>'+daysTogether(TOGETHER_SINCE,todayIso)+'</b><span><i>giorni insieme</i>dal '+d+' '+MESI[m-1].toLowerCase()+' '+y+' · '+togetherLabel(TOGETHER_SINCE,todayIso)+'</span></div>';
+}
+
+function statsBody(){
+  if(st.allErr) return '<div class="banner" role="alert">'+esc(st.allErr)+'<button class="link" data-act="retry-stats">Riprova</button></div>';
+  if(!st.all) return '<div class="tg" aria-hidden="true"><i class="sk sk-big"></i></div><i class="sk sk-line"></i><i class="sk sk-line"></i><i class="sk sk-line"></i><i class="sk sk-line"></i><i class="sk sk-line"></i>';
+  let h=togetherHtml();
+  if(!st.all.length) return h+'<p class="empty">Ancora niente da contare: segna il primo giorno dal calendario.</p>';
+  const tot=monthStats(st.all);
+  const list=monthsStats(st.all);
+  h+='<div class="lab">Da sempre</div><div class="row"><span class="nm tot">Atti in totale</span><span class="n">'+tot.total+'</span></div>'+rowsHtml(tot.counts,null)+balHtml(tot.counts);
+  h+='<div class="lab">Storico</div>'+list.map((m,i)=>monthItem(m,i,list)).join('');
+  return h;
+}
+
+function viewStats(){
+  return '<div class="phone"><div class="main sx"><div class="hd hd-back"><button class="gear" data-act="stats-close" aria-label="Torna al calendario">&lsaquo;</button><h1 class="pg-t">Statistiche</h1><span></span></div>'+banner()+statsBody()+'</div></div>';
+}
+
+function recapHtml(){
+  if(!st.all||!st.me||recapSeen()) return '';
+  const list=monthsStats(st.all);
+  const pk=prevMonthKey(now.getFullYear(),now.getMonth());
+  const i=list.findIndex(x=>x.key===pk);
+  if(i<0) return '';
+  const c=list[i];
+  const p=prevOf(list,i);
+  return '<div class="rc sx"><button class="x" data-act="recap-x" aria-label="Chiudi riepilogo">&times;</button><div class="eb">Riepilogo</div><h3>'+MESI[c.m]+'</h3>'+(p?'<div class="sub">confrontato con '+MESI[(c.m+11)%12].toLowerCase()+'</div>':'')
+    +'<div class="rc-top"><span class="big">'+c.total+'</span><span class="rc-l">atti, '+c.activeDays+(c.activeDays===1?' giorno':' giorni')+'</span>'+dl(c.total,p?p.total:null)+'</div>'
+    +rowsHtml(c.counts,p)+balHtml(c.counts)+'</div>';
+}
+
 function skStats(){
-  return '<div class="stats" aria-hidden="true"><span><i class="sk sk-n"></i><i class="sk sk-l"></i></span><span class="sep"></span><span><i class="sk sk-n"></i><i class="sk sk-l"></i></span><span class="sep"></span><span><i class="sk sk-n w2"></i><i class="sk sk-l"></i></span></div>';
+  return '<div class="stats" aria-hidden="true"><span><i class="sk sk-n"></i><i class="sk sk-l"></i></span><span class="sep"></span><span><i class="sk sk-n"></i><i class="sk sk-l"></i></span><span class="sep"></span><span><i class="sk sk-n"></i><i class="sk sk-l"></i></span><span class="sep"></span><span><i class="sk sk-n w2"></i><i class="sk sk-l"></i></span></div>';
 }
 
 function skFilters(){
@@ -195,10 +273,10 @@ function viewCalendar(){
   const {offset,days}=monthGrid(st.y,st.m);
   const ago=agoLabel(daysSince(st.lastDate,todayIso));
   let h='<div class="phone'+(st.sheet?' locked':'')+(st.loadErr?' still':'')+'"><div class="main">'
-    +'<div class="hd">'+wm()+'<button class="gear" data-act="settings" aria-label="Impostazioni">'+GEAR+'</button></div>'
-    +banner()+retryBar()
+    +'<div class="hd">'+wm()+'<div class="hd-r"><button class="gear" data-act="stats" aria-label="Statistiche">'+BARS+'</button><button class="gear" data-act="settings" aria-label="Impostazioni">'+GEAR+'</button></div></div>'
+    +banner()+retryBar()+recapHtml()
     +'<div class="mnav"><button data-act="prev" aria-label="Mese precedente">‹</button><h1>'+MESI[st.m]+' <i>'+st.y+'</i></h1><button data-act="next" aria-label="Mese successivo">›</button></div>'
-    +(sk?skStats():'<div class="stats"><span><b>'+stats.total+'</b>nel mese</span><span class="sep"></span><span><b>'+stats.activeDays+'</b>giorni</span><span class="sep"></span><span><b class="t">'+ago+'</b>ultima volta</span></div>')
+    +(sk?skStats():'<div class="stats"><span><b>'+stats.total+'</b>nel mese</span><span class="sep"></span><span><b>'+stats.activeDays+'</b>giorni</span><span class="sep"></span><span><b class="g">'+daysTogether(TOGETHER_SINCE,todayIso)+'</b>giorni insieme</span><span class="sep"></span><span><b class="t">'+ago+'</b>ultima volta</span></div>')
     +(sk?skFilters():'<div class="filters" role="group" aria-label="Filtra per tipo"><button class="fl" data-act="filter" data-v="" aria-pressed="'+(st.filter===null)+'">Tutti <span class="n">'+stats.total+'</span></button>'
     +TYPES.map(t=>'<button class="fl" style="--cc:var(--c-'+t+')" data-act="filter" data-v="'+t+'" aria-pressed="'+(st.filter===t)+'">'+icon(t,'sm')+t+' <span class="n">'+stats.counts[t]+'</span></button>').join('')+'</div>')
     +'<div class="dow">'+DOW.map(d=>'<span>'+d+'</span>').join('')+'</div><div class="grid" style="--rows:'+Math.ceil((offset+days)/7)+'">';
@@ -209,7 +287,7 @@ function viewCalendar(){
     const cnt=countsOnDay(st.events,id);
     const dim=st.filter&&types.length&&!types.includes(st.filter);
     const cls=(types.length?' has':'')+(id===todayIso?' today':'')+(id===st.sel?' sel':'')+(id>todayIso?' fut':'')+(dim?' dim':'');
-    h+='<button class="cell'+cls+'" data-act="day" data-iso="'+id+'" aria-label="'+d+' '+MESI[st.m]+(types.length?': '+types.map(t=>t+(cnt[t]>1?' x'+cnt[t]:'')).join(', '):'')+'"><span class="num">'+d+'</span><span class="ics">'+types.slice(0,4).map(t=>'<span class="icn">'+icon(t,'sm')+(cnt[t]>1?'<i>'+cnt[t]+'</i>':'')+'</span>').join('')+'</span></button>';
+    h+='<button class="cell'+cls+'" data-act="day" data-iso="'+id+'" aria-label="'+d+' '+MESI[st.m]+(types.length?': '+types.map(t=>t+(cnt[t]>1?' x'+cnt[t]:'')).join(', '):'')+'"><span class="num">'+d+'</span><span class="ics">'+types.slice(0,5).map(t=>'<span class="icn">'+icon(t,'sm')+(cnt[t]>1?'<i>'+cnt[t]+'</i>':'')+'</span>').join('')+'</span></button>';
   }
   if(sk) for(let d=1;d<=days;d++) h+='<span class="cell sk-cell"><span class="num">'+d+'</span><span class="sk sk-ic"></span></span>';
   h+='</div></div>';
@@ -218,10 +296,13 @@ function viewCalendar(){
   return h+'</div>';
 }
 
+let lastPage=null;
+
 function render(){
   const keep=root.querySelector('.main');
-  const top=keep?keep.scrollTop:0;
-  const views={boot:'<p class="boot">Caricamento</p>',login:viewLogin,setpin:viewSetPin,lock:viewLock,app:viewCalendar};
+  const top=keep&&st.page===lastPage?keep.scrollTop:0;
+  lastPage=st.page;
+  const views={boot:'<p class="boot">Caricamento</p>',login:viewLogin,setpin:viewSetPin,lock:viewLock,app:()=>st.page==='stats'&&st.me?viewStats():viewCalendar()};
   const v=views[st.screen];
   root.innerHTML=typeof v==='function'?v():v;
   const main=root.querySelector('.main');
@@ -254,6 +335,24 @@ async function loadAll(){
   if(st.screen==='app') render();
 }
 
+let allGen=0;
+
+async function loadStats(){
+  const g=++allGen;
+  st.allLoading=true;st.allErr='';
+  try{
+    const all=await api.loadAllEvents();
+    if(g!==allGen) return;
+    st.all=all;
+  }catch(e){
+    console.warn('statistiche non caricate',e);
+    if(g!==allGen) return;
+    st.allErr=e&&e.message?e.message:'Statistiche non caricate';
+  }
+  st.allLoading=false;
+  if(st.screen==='app') render();
+}
+
 async function enterApp(){
   st.screen=hasPin(localStorage)?'lock':'setpin';
   st.pinLen=pinLength(localStorage)||4;
@@ -262,6 +361,7 @@ async function enterApp(){
   st.error='';
   render();
   loadAll();
+  loadStats();
 }
 
 async function boot(){
@@ -315,7 +415,8 @@ async function signOutNow(){
   await api.signOut();
   localStorage.removeItem('manic-pin');
   localStorage.removeItem('manic-pin-len');
-  Object.assign(st,{screen:'login',session:null,members:[],me:null,events:[],sheet:null,pin:'',pinFirst:'',pinBusy:false,forgot:false,error:''});
+  allGen++;
+  Object.assign(st,{screen:'login',session:null,members:[],me:null,events:[],all:null,allErr:'',allLoading:false,page:null,openMonth:null,recapOff:false,sheet:null,pin:'',pinFirst:'',pinBusy:false,forgot:false,error:''});
 }
 
 async function handle(act,t){
@@ -354,6 +455,18 @@ async function handle(act,t){
     loadAll();
   }
   else if(act==='retry'){loadAll();}
+  else if(act==='stats'){
+    if(!st.me) return;
+    st.page='stats';st.sheet=null;st.error='';
+    if(!st.all&&!st.allLoading) loadStats();
+  }
+  else if(act==='stats-close'){st.page=null;st.error='';}
+  else if(act==='retry-stats'){loadStats();}
+  else if(act==='mo'){st.openMonth=st.openMonth===t.dataset.v?null:t.dataset.v;}
+  else if(act==='recap-x'){
+    st.recapOff=true;
+    try{localStorage.setItem(RECAP_KEY,monthKey(todayIso));}catch(err){console.warn('riepilogo non memorizzato',err);}
+  }
   else if(act==='filter'){st.filter=t.dataset.v||null;}
   else if(act==='add'){st.adding=true;TYPES.forEach(t=>{st.counts[t]=0});st.note='';st.error='';}
   else if(act==='cancel'){st.adding=false;}
@@ -368,12 +481,14 @@ async function handle(act,t){
     const who=whoFromChoice(st.whoChoice,st.me.slot);
     const saved=await Promise.all(list.map(ty=>api.addEvent({couple_id:st.me.couple_id,event_date:st.sel,type:ty,who,note:st.note.trim()})));
     st.events.push(...saved);
+    if(st.all) st.all.push(...saved);
     st.lastDate=await api.lastEventDate(todayIso);
     st.adding=false;st.busy=false;
   }
   else if(act==='del'){
     await api.removeEvent(t.dataset.id);
     st.events=st.events.filter(e=>e.id!==t.dataset.id);
+    if(st.all) st.all=st.all.filter(e=>e.id!==t.dataset.id);
     st.lastDate=await api.lastEventDate(todayIso);
   }
   else if(act==='save-names'){

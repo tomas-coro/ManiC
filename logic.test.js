@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {TYPES,pad,isoDate,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice} from './logic.js';
+import {TYPES,pad,isoDate,flowOf,balance,monthKey,monthsStats,prevMonthKey,deltas,prevOf,daysTogether,togetherLabel,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice} from './logic.js';
 
 test('pad aggiunge lo zero',()=>{
   assert.equal(pad(3),'03');
@@ -44,14 +44,14 @@ test('monthStats conta totale, giorni diversi e per tipo',()=>{
   const s=monthStats(ev);
   assert.equal(s.total,3);
   assert.equal(s.activeDays,2);
-  assert.deepEqual(s.counts,{sesso:2,pompino:1,leccata:0,anale:0});
+  assert.deepEqual(s.counts,{sesso:2,pompino:1,leccata:0,anale:0,ditalini:0});
 });
 
 test('monthStats su lista vuota',()=>{
   const s=monthStats([]);
   assert.equal(s.total,0);
   assert.equal(s.activeDays,0);
-  assert.deepEqual(s.counts,{sesso:0,pompino:0,leccata:0,anale:0});
+  assert.deepEqual(s.counts,{sesso:0,pompino:0,leccata:0,anale:0,ditalini:0});
 });
 
 test('daysSince e agoLabel',()=>{
@@ -85,8 +85,8 @@ test('whoFromChoice traduce la scelta in assoluto',()=>{
   assert.equal(whoFromChoice('both',1),'both');
 });
 
-test('TYPES ha i 4 tipi nell\'ordine previsto',()=>{
-  assert.deepEqual(TYPES,['sesso','pompino','leccata','anale']);
+test('TYPES ha i 5 tipi nell\'ordine previsto',()=>{
+  assert.deepEqual(TYPES,['sesso','pompino','leccata','anale','ditalini']);
 });
 
 test('countsOnDay conta le ripetizioni dello stesso tipo nel giorno',()=>{
@@ -97,4 +97,87 @@ test('countsOnDay conta le ripetizioni dello stesso tipo nel giorno',()=>{
   ];
   assert.deepEqual(countsOnDay(ev,'2026-11-14'),{sesso:3,pompino:1});
   assert.deepEqual(countsOnDay(ev,'2026-11-20'),{});
+});
+
+test('flowOf: per Tomas pompino ricevuto, leccata e ditalini dati, sesso e anale insieme',()=>{
+  assert.equal(flowOf('pompino',1),'ricevuto');
+  assert.equal(flowOf('leccata',1),'dato');
+  assert.equal(flowOf('ditalini',1),'dato');
+  assert.equal(flowOf('sesso',1),'insieme');
+  assert.equal(flowOf('anale',1),'insieme');
+});
+
+test('flowOf: per lei dato e ricevuto si invertono, insieme resta',()=>{
+  assert.equal(flowOf('pompino',2),'dato');
+  assert.equal(flowOf('leccata',2),'ricevuto');
+  assert.equal(flowOf('ditalini',2),'ricevuto');
+  assert.equal(flowOf('sesso',2),'insieme');
+});
+
+test('balance somma dati, ricevuti, insieme e la differenza',()=>{
+  const counts={sesso:4,pompino:2,leccata:3,anale:1,ditalini:2};
+  assert.deepEqual(balance(counts,1),{dati:5,ricevuti:2,insieme:5,diff:3});
+  assert.deepEqual(balance(counts,2),{dati:2,ricevuti:5,insieme:5,diff:-3});
+  assert.deepEqual(balance({},1),{dati:0,ricevuti:0,insieme:0,diff:0});
+});
+
+test('monthKey e prevMonthKey, anche a gennaio',()=>{
+  assert.equal(monthKey('2026-11-17'),'2026-11');
+  assert.equal(prevMonthKey(2026,10),'2026-10');
+  assert.equal(prevMonthKey(2027,0),'2026-12');
+});
+
+test('monthsStats raggruppa per mese, dal più recente, con conteggi',()=>{
+  const ev=[
+    {event_date:'2026-10-30',type:'sesso'},
+    {event_date:'2026-11-02',type:'pompino'},
+    {event_date:'2026-11-02',type:'ditalini'},
+    {event_date:'2026-11-08',type:'sesso'}
+  ];
+  const r=monthsStats(ev);
+  assert.deepEqual(r.map(x=>x.key),['2026-11','2026-10']);
+  assert.equal(r[0].y,2026);
+  assert.equal(r[0].m,10);
+  assert.equal(r[0].total,3);
+  assert.equal(r[0].activeDays,2);
+  assert.equal(r[0].counts.ditalini,1);
+  assert.equal(r[1].total,1);
+  assert.deepEqual(monthsStats([]),[]);
+});
+
+test('deltas confronta mese e mese prima',()=>{
+  const cur={total:5,counts:{sesso:3,pompino:1,leccata:0,anale:0,ditalini:1}};
+  const prev={total:6,counts:{sesso:1,pompino:2,leccata:2,anale:0,ditalini:1}};
+  assert.deepEqual(deltas(cur,prev),{sesso:2,pompino:-1,leccata:-2,anale:0,ditalini:0,total:-1});
+});
+
+test('daysTogether dal 22 aprile 2026',()=>{
+  assert.equal(daysTogether('2026-04-22','2026-11-17'),209);
+  assert.equal(daysTogether('2026-04-22','2026-04-22'),0);
+});
+
+test('togetherLabel in mesi e giorni',()=>{
+  assert.equal(togetherLabel('2026-04-22','2026-11-17'),'6 mesi e 26 giorni');
+  assert.equal(togetherLabel('2026-04-22','2026-11-22'),'7 mesi');
+  assert.equal(togetherLabel('2026-04-22','2026-05-23'),'1 mese e 1 giorno');
+  assert.equal(togetherLabel('2026-04-22','2026-04-30'),'8 giorni');
+  assert.equal(togetherLabel('2026-04-22','2027-04-22'),'1 anno');
+  assert.equal(togetherLabel('2026-04-22','2027-07-25'),'1 anno, 3 mesi e 3 giorni');
+});
+
+test('prevOf dà il mese prima, uno vuoto se c\'è un buco, niente per il primo mese',()=>{
+  const ev=[
+    {event_date:'2026-09-03',type:'sesso'},
+    {event_date:'2026-10-03',type:'sesso'},
+    {event_date:'2026-11-03',type:'sesso'},
+    {event_date:'2026-07-03',type:'sesso'}
+  ];
+  const list=monthsStats(ev.filter(e=>e.event_date!=='2026-10-03'));
+  assert.deepEqual(list.map(x=>x.key),['2026-11','2026-09','2026-07']);
+  assert.equal(prevOf(list,1).total,0);
+  assert.equal(prevOf(list,1).key,undefined);
+  assert.equal(prevOf(list,0).total,0);
+  assert.equal(prevOf(list,2),null);
+  const full=monthsStats(ev);
+  assert.equal(prevOf(full,0).key,'2026-10');
 });
