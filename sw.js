@@ -1,5 +1,5 @@
 const CACHE='manic-v1';
-const FILES=['./','index.html','style.css','app.js','api.js','logic.js','pin.js','icons.js','config.js','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png','assets/wordmark-completo.png','assets/wordmark-lettere.png'];
+const FILES=['./','index.html','style.css','app.js','api.js','logic.js','pin.js','update.js','icons.js','config.js','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png','assets/wordmark-completo.png','assets/wordmark-lettere.png'];
 
 self.addEventListener('install',e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES)));

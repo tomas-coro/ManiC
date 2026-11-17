@@ -1,6 +1,7 @@
 import {TYPES,MESI,GIORNI,DOW,isoDate,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice} from './logic.js';
 import {FLAT} from './icons.js';
 import * as api from './api.js';
+import {fetchSignature,shortVersion} from './update.js';
 import {validPin,hasPin,setPin,checkPin,pinLength} from './pin.js';
 
 const root=document.getElementById('root');
@@ -29,7 +30,10 @@ const st={
   pinFirst:'',
   pinLen:4,
   pinBusy:false,
-  forgot:false
+  forgot:false,
+  updReady:false,
+  updMsg:'',
+  version:''
 };
 
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -44,6 +48,29 @@ function names(){
   const n={1:'',2:''};
   st.members.forEach(m=>{n[m.slot]=m.display_name});
   return n;
+}
+
+let baseline=null;
+
+async function checkUpdate(manual){
+  try{
+    const sig=await fetchSignature();
+    if(baseline===null){baseline=sig;st.version=shortVersion(sig);}
+    else if(sig!==baseline) st.updReady=true;
+    if(manual) st.updMsg=st.updReady?'Nuova versione disponibile':'Sei aggiornato';
+  }catch(e){
+    console.warn('controllo aggiornamenti non riuscito',e);
+    if(manual) st.updMsg='Controllo non riuscito: '+(e&&e.message?e.message:'errore di rete');
+  }
+  if(manual||st.sheet==='settings') render();
+  else updateBar();
+}
+
+function updateBar(){
+  const old=document.getElementById('upd');
+  if(old) old.remove();
+  if(!st.updReady||st.sheet==='settings') return;
+  root.insertAdjacentHTML('beforeend','<div class="upd" id="upd" role="status"><span>C\'è una nuova versione</span><button data-act="upd-reload">Aggiorna</button></div>');
 }
 
 function banner(){
@@ -142,6 +169,8 @@ function settings(){
     +'<button class="cta" data-act="save-names">Salva i nomi</button>'
     +'<button class="cta ghost" data-act="change-pin">Cambia PIN</button>'
     +'<button class="cta ghost" data-act="lock-now">Blocca ora</button>'
+    +'<div class="f-lab">App</div><p class="ver">Versione '+esc(st.version||'...')+(st.updMsg?' · '+esc(st.updMsg):'')+'</p>'
+    +(st.updReady?'<button class="cta" data-act="upd-reload">Aggiorna ora</button>':'<button class="cta ghost" data-act="check-update">Controlla aggiornamenti</button>')
     +'<button class="cta ghost" data-act="logout">Esci dall\'account</button>';
 }
 
@@ -180,6 +209,7 @@ function render(){
   root.innerHTML=typeof v==='function'?v():v;
   const main=root.querySelector('.main');
   if(main) main.scrollTop=top;
+  updateBar();
 }
 
 async function loadMonth(){
@@ -323,12 +353,14 @@ async function handle(act,t){
   }
   else if(act==='change-pin'){st.screen='setpin';st.pin='';st.pinFirst='';st.pinLen=pinLength(localStorage)||4;st.sheet=null;}
   else if(act==='lock-now'){st.screen='lock';st.pin='';st.sheet=null;}
+  else if(act==='check-update'){st.updMsg='Controllo in corso';render();await checkUpdate(true);return;}
+  else if(act==='upd-reload'){location.reload();return;}
   else if(act==='logout') await signOutNow();
   render();
 }
 
 root.addEventListener('click',async e=>{
-  if(st.screen==='app'&&st.sheet&&!e.target.closest('.sheet')&&!e.target.closest('[data-act="close"]')){
+  if(st.screen==='app'&&st.sheet&&!e.target.closest('.sheet')&&!e.target.closest('[data-act="close"]')&&!e.target.closest('.upd')){
     e.preventDefault();e.stopPropagation();
     st.sheet=null;st.adding=false;render();return;
   }
@@ -358,4 +390,7 @@ if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
 
+setInterval(()=>{if(!document.hidden) checkUpdate(false);},120000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden) checkUpdate(false);});
+checkUpdate(false);
 boot();
