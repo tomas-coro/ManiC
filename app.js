@@ -201,7 +201,7 @@ function viewCalendar(){
     +(sk?skStats():'<div class="stats"><span><b>'+stats.total+'</b>nel mese</span><span class="sep"></span><span><b>'+stats.activeDays+'</b>giorni</span><span class="sep"></span><span><b class="t">'+ago+'</b>ultima volta</span></div>')
     +(sk?skFilters():'<div class="filters" role="group" aria-label="Filtra per tipo"><button class="fl" data-act="filter" data-v="" aria-pressed="'+(st.filter===null)+'">Tutti <span class="n">'+stats.total+'</span></button>'
     +TYPES.map(t=>'<button class="fl" style="--cc:var(--c-'+t+')" data-act="filter" data-v="'+t+'" aria-pressed="'+(st.filter===t)+'">'+icon(t,'sm')+t+' <span class="n">'+stats.counts[t]+'</span></button>').join('')+'</div>')
-    +'<div class="dow">'+DOW.map(d=>'<span>'+d+'</span>').join('')+'</div><div class="grid">';
+    +'<div class="dow">'+DOW.map(d=>'<span>'+d+'</span>').join('')+'</div><div class="grid" style="--rows:'+Math.ceil((offset+days)/7)+'">';
   for(let i=0;i<offset;i++) h+='<span class="cell pad"></span>';
   for(let d=1;d<=days&&!sk;d++){
     const id=isoDate(st.y,st.m,d);
