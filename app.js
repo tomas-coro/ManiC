@@ -32,6 +32,7 @@ const st={
 
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const icon=(t,cls)=>'<svg class="ic '+(cls||'')+'" viewBox="0 0 32 32" aria-hidden="true">'+FLAT[t]+'</svg>';
+const wm=full=>'<img class="wmi" src="assets/wordmark-'+(full?'completo':'lettere')+'.png" alt="ManiC">';
 const LOCK='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 const GEAR='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
 
@@ -52,8 +53,8 @@ function showError(e){
 }
 
 function viewLogin(){
-  return '<section class="screen"><h1>ManiC</h1><p>Accedi per continuare.</p>'+banner()
-    +'<form id="f-login" class="screen-form" style="display:flex;flex-direction:column;gap:10px">'
+  return '<section class="screen">'+wm(true)+'<p>Accedi per continuare.</p>'+banner()
+    +'<form id="f-login" class="screen-form">'
     +'<input class="field" type="email" name="email" placeholder="Email" autocomplete="username" required>'
     +'<input class="field" type="password" name="password" placeholder="Password" autocomplete="current-password" required>'
     +'<button class="cta" type="submit"'+(st.busy?' disabled':'')+'>'+(st.busy?'Accesso in corso':'Accedi')+'</button></form></section>';
@@ -113,7 +114,7 @@ function viewCalendar(){
   const {offset,days}=monthGrid(st.y,st.m);
   const ago=agoLabel(daysSince(st.lastDate,todayIso));
   let h='<div class="phone'+(st.sheet?' locked':'')+'"><div class="main">'
-    +'<div class="hd"><div class="brand">ManiC</div><button class="gear" data-act="settings" aria-label="Impostazioni">'+GEAR+'</button></div>'
+    +'<div class="hd">'+wm()+'<button class="gear" data-act="settings" aria-label="Impostazioni">'+GEAR+'</button></div>'
     +banner()
     +'<div class="mnav"><button data-act="prev" aria-label="Mese precedente">‹</button><h1>'+MESI[st.m]+' <i>'+st.y+'</i></h1><button data-act="next" aria-label="Mese successivo">›</button></div>'
     +'<div class="stats"><span><b>'+stats.total+'</b>nel mese</span><span class="sep"></span><span><b>'+stats.activeDays+'</b>giorni</span><span class="sep"></span><span>ultima: '+ago+'</span></div>'
