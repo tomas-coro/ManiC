@@ -52,6 +52,7 @@ const LOCK='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="
 const GEAR='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
 
 const BARS='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V11M12 20V4M19 20v-6"/></svg>';
+const CAL='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2.5"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>';
 const RECAP_KEY='manic-recap';
 
 const total=()=>TYPES.reduce((n,t)=>n+st.counts[t],0);
@@ -74,14 +75,14 @@ async function checkUpdate(manual){
     console.warn('controllo aggiornamenti non riuscito',e);
     if(manual) st.updMsg='Controllo non riuscito: '+(e&&e.message?e.message:'errore di rete');
   }
-  if(manual||st.sheet==='settings') render();
+  if(manual||st.page==='settings') render();
   else updateBar();
 }
 
 function updateBar(){
   const old=document.getElementById('upd');
   if(old) old.remove();
-  if(!st.updReady||st.sheet==='settings') return;
+  if(!st.updReady||st.page==='settings') return;
   root.insertAdjacentHTML('beforeend','<div class="upd" id="upd" role="status"><span>C\'è una nuova versione</span><button data-act="upd-reload">Aggiorna</button></div>');
 }
 
@@ -175,8 +176,7 @@ function detail(){
 function settings(){
   const n=names();
   const other=st.members.find(x=>x.user_id!==st.me.user_id);
-  return '<div class="d-head"><div class="d-title">Impostazioni</div><button class="x" data-act="close" aria-label="Chiudi">×</button></div>'
-    +'<div class="f-lab">Il tuo nome</div><input class="note" type="text" maxlength="30" value="'+esc(n[st.me.slot])+'" data-name="me">'
+  return '<div class="f-lab">Il tuo nome</div><input class="note" type="text" maxlength="30" value="'+esc(n[st.me.slot])+'" data-name="me">'
     +'<div class="f-lab">Il suo nome</div><input class="note" type="text" maxlength="30" value="'+esc(other?other.display_name:'')+'" data-name="other">'
     +'<button class="cta" data-act="save-names">Salva i nomi</button>'
     +'<button class="cta ghost" data-act="change-pin">Cambia PIN</button>'
@@ -238,8 +238,24 @@ function statsBody(){
   return h;
 }
 
+function recapPending(){
+  if(!st.all||!st.me||recapSeen()) return false;
+  const pk=prevMonthKey(now.getFullYear(),now.getMonth());
+  return st.all.some(e=>monthKey(e.event_date)===pk);
+}
+
+function tabs(){
+  const cur=st.page==='settings'?'settings':st.page==='stats'?'stats':'cal';
+  const b=(id,act,svg,label,dot)=>'<button class="tab" data-act="'+act+'" aria-current="'+(cur===id)+'">'+svg+(dot?'<i class="dot"></i>':'')+'<span>'+label+'</span></button>';
+  return '<nav class="tabs" aria-label="Sezioni">'+b('cal','tab-cal',CAL,'Calendario',false)+b('stats','stats',BARS,'Statistiche',recapPending())+b('settings','settings',GEAR,'Impostazioni',false)+'</nav>';
+}
+
 function viewStats(){
-  return '<div class="phone"><div class="main sx"><div class="hd hd-back"><button class="gear" data-act="stats-close" aria-label="Torna al calendario">&lsaquo;</button><h1 class="pg-t">Statistiche</h1><span></span></div>'+banner()+statsBody()+'</div></div>';
+  return '<div class="phone'+(st.sheet?' locked':'')+'"><div class="main sx"><div class="hd hd-back"><h1 class="pg-t">Statistiche</h1></div>'+banner()+recapHtml()+statsBody()+'</div>'+tabs()+'</div>';
+}
+
+function viewSettings(){
+  return '<div class="phone"><div class="main sx"><div class="hd hd-back"><h1 class="pg-t">Impostazioni</h1></div>'+banner()+settings()+'</div>'+tabs()+'</div>';
 }
 
 function recapHtml(){
@@ -273,8 +289,8 @@ function viewCalendar(){
   const {offset,days}=monthGrid(st.y,st.m);
   const ago=agoLabel(daysSince(st.lastDate,todayIso));
   let h='<div class="phone'+(st.sheet?' locked':'')+(st.loadErr?' still':'')+'"><div class="main">'
-    +'<div class="hd">'+wm()+'<div class="hd-r"><button class="gear" data-act="stats" aria-label="Statistiche">'+BARS+'</button><button class="gear" data-act="settings" aria-label="Impostazioni">'+GEAR+'</button></div></div>'
-    +banner()+retryBar()+recapHtml()
+    +'<div class="hd">'+wm()+'</div>'
+    +banner()+retryBar()
     +'<div class="mnav"><button data-act="prev" aria-label="Mese precedente">‹</button><h1>'+MESI[st.m]+' <i>'+st.y+'</i></h1><button data-act="next" aria-label="Mese successivo">›</button></div>'
     +(sk?skStats():'<div class="stats"><span><b>'+stats.total+'</b>atti nel mese</span><span class="sep"></span><span><b>'+stats.activeDays+'</b>giorni attivi</span><span class="sep"></span><span><b class="g">'+daysTogether(TOGETHER_SINCE,todayIso)+'</b>giorni insieme</span><span class="sep"></span><span><b class="t">'+ago+'</b>ultima volta</span></div>')
     +(sk?skFilters():'<div class="filters" role="group" aria-label="Filtra per tipo"><button class="fl" data-act="filter" data-v="" aria-pressed="'+(st.filter===null)+'">Tutti <span class="n">'+stats.total+'</span></button>'
@@ -290,9 +306,8 @@ function viewCalendar(){
     h+='<button class="cell'+cls+'" data-act="day" data-iso="'+id+'" aria-label="'+d+' '+MESI[st.m]+(types.length?': '+types.map(t=>t+(cnt[t]>1?' x'+cnt[t]:'')).join(', '):'')+'"><span class="num">'+d+'</span><span class="ics">'+types.slice(0,5).map(t=>'<span class="icn">'+icon(t,'sm')+(cnt[t]>1?'<i>'+cnt[t]+'</i>':'')+'</span>').join('')+'</span></button>';
   }
   if(sk) for(let d=1;d<=days;d++) h+='<span class="cell sk-cell"><span class="num">'+d+'</span><span class="sk sk-ic"></span></span>';
-  h+='</div></div>';
+  h+='</div></div>'+tabs();
   if(st.sheet==='day'&&st.sel) h+='<div class="sheet">'+detail()+'</div>';
-  if(st.sheet==='settings') h+='<div class="sheet">'+settings()+'</div>';
   return h+'</div>';
 }
 
@@ -302,7 +317,7 @@ function render(){
   const keep=root.querySelector('.main');
   const top=keep&&st.page===lastPage?keep.scrollTop:0;
   lastPage=st.page;
-  const views={boot:'<p class="boot">Caricamento</p>',login:viewLogin,setpin:viewSetPin,lock:viewLock,app:()=>st.page==='stats'&&st.me?viewStats():viewCalendar()};
+  const views={boot:'<p class="boot">Caricamento</p>',login:viewLogin,setpin:viewSetPin,lock:viewLock,app:()=>st.page==='stats'&&st.me?viewStats():st.page==='settings'&&st.me?viewSettings():viewCalendar()};
   const v=views[st.screen];
   root.innerHTML=typeof v==='function'?v():v;
   const main=root.querySelector('.main');
@@ -448,7 +463,7 @@ async function handle(act,t){
   }
   if(act==='day'){st.sel=t.dataset.iso;st.sheet='day';st.adding=false;st.error='';}
   else if(act==='close'){st.sheet=null;st.adding=false;st.error='';}
-  else if(act==='settings'){st.sheet='settings';st.error='';}
+  else if(act==='settings'){st.page='settings';st.sheet=null;st.error='';}
   else if(act==='prev'||act==='next'){
     const dt=new Date(st.y,st.m+(act==='prev'?-1:1),1);
     st.y=dt.getFullYear();st.m=dt.getMonth();st.error='';
@@ -460,7 +475,7 @@ async function handle(act,t){
     st.page='stats';st.sheet=null;st.error='';
     if(!st.all&&!st.allLoading) loadStats();
   }
-  else if(act==='stats-close'){st.page=null;st.error='';}
+  else if(act==='tab-cal'){st.page=null;st.sheet=null;st.error='';}
   else if(act==='retry-stats'){loadStats();}
   else if(act==='mo'){st.openMonth=st.openMonth===t.dataset.v?null:t.dataset.v;}
   else if(act==='recap-open'){
@@ -504,10 +519,9 @@ async function handle(act,t){
     if(o) await api.renameMember(o.user_id,other);
     st.members=await api.loadMembers();
     st.me=st.members.find(x=>x.user_id===st.session.user.id);
-    st.sheet=null;
   }
-  else if(act==='change-pin'){st.screen='setpin';st.pin='';st.pinFirst='';st.pinLen=pinLength(localStorage)||4;st.sheet=null;}
-  else if(act==='lock-now'){st.screen='lock';st.pin='';st.sheet=null;}
+  else if(act==='change-pin'){st.screen='setpin';st.pin='';st.pinFirst='';st.pinLen=pinLength(localStorage)||4;st.sheet=null;st.page=null;}
+  else if(act==='lock-now'){st.screen='lock';st.pin='';st.sheet=null;st.page=null;}
   else if(act==='check-update'){st.updMsg='Controllo in corso';render();await checkUpdate(true);return;}
   else if(act==='upd-reload'){location.reload();return;}
   else if(act==='logout') await signOutNow();
