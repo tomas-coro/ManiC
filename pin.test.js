@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validPin,hasPin,setPin,checkPin} from './pin.js';
+import {validPin,hasPin,setPin,checkPin,pinLength} from './pin.js';
 
 function fakeStorage(){
   const m=new Map();
@@ -53,4 +53,16 @@ test('setPin rifiuta un PIN non valido',async()=>{
 
 test('checkPin senza PIN impostato rifiuta',async()=>{
   assert.equal(await checkPin('4821',fakeStorage()),false);
+});
+
+test('pinLength salva la lunghezza alla creazione, null per i PIN vecchi',async()=>{
+  const s=fakeStorage();
+  assert.equal(pinLength(s),null);
+  await setPin('123456',s);
+  assert.equal(pinLength(s),6);
+  await setPin('4821',s);
+  assert.equal(pinLength(s),4);
+  const old=fakeStorage();
+  old.setItem('manic-pin','x:y');
+  assert.equal(pinLength(old),null);
 });

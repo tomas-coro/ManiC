@@ -1,4 +1,5 @@
 const KEY='manic-pin';
+const LEN_KEY='manic-pin-len';
 const ITERATIONS=150000;
 
 export function validPin(pin){
@@ -20,6 +21,11 @@ async function derive(pin,salt){
   return crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:ITERATIONS,hash:'SHA-256'},keyMaterial,256);
 }
 
+export function pinLength(storage){
+  const n=Number(storage.getItem(LEN_KEY));
+  return n>=4&&n<=6?n:null;
+}
+
 export function hasPin(storage){
   return storage.getItem(KEY)!==null;
 }
@@ -29,6 +35,7 @@ export async function setPin(pin,storage){
   const salt=crypto.getRandomValues(new Uint8Array(16));
   const hash=await derive(pin,salt);
   storage.setItem(KEY,toB64(salt)+':'+toB64(hash));
+  storage.setItem(LEN_KEY,String(pin.length));
 }
 
 export async function checkPin(pin,storage){

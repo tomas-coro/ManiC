@@ -1,7 +1,7 @@
 import {TYPES,MESI,GIORNI,DOW,isoDate,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice} from './logic.js';
 import {FLAT} from './icons.js';
 import * as api from './api.js';
-import {validPin,hasPin,setPin,checkPin} from './pin.js';
+import {validPin,hasPin,setPin,checkPin,pinLength} from './pin.js';
 
 const root=document.getElementById('root');
 const now=new Date();
@@ -26,7 +26,10 @@ const st={
   note:'',
   filter:null,
   pin:'',
-  pinFirst:''
+  pinFirst:'',
+  pinLen:4,
+  pinBusy:false,
+  forgot:false
 };
 
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -61,22 +64,54 @@ function viewLogin(){
     +'<button class="cta" type="submit"'+(st.busy?' disabled':'')+'>'+(st.busy?'Accesso in corso':'Accedi')+'</button></form></section>';
 }
 
-function pinView(title,sub){
-  const len=Math.max(4,st.pin.length);
-  let dots='';
-  for(let i=0;i<Math.min(6,Math.max(4,len));i++) dots+='<i class="'+(i<st.pin.length?'on':'')+'"></i>';
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+const pinLen=()=>st.screen==='setpin'?st.pinLen:pinLength(localStorage);
+const dotCount=()=>pinLen()||Math.min(6,Math.max(4,st.pin.length));
+const dotsHtml=n=>'<i></i>'.repeat(n);
+const pinLabel=()=>st.error||(st.screen==='setpin'?(st.pinFirst?'Ripeti lo stesso PIN':'Scegli un PIN'):'Inserisci il PIN');
+
+function pinView(){
+  const len=pinLen();
+  const setup=st.screen==='setpin';
   let keys='';
-  [1,2,3,4,5,6,7,8,9].forEach(n=>{keys+='<button data-act="pin-digit" data-v="'+n+'" aria-label="'+n+'">'+n+'</button>'});
-  keys+='<button data-act="pin-back" aria-label="Cancella">⌫</button><button data-act="pin-digit" data-v="0" aria-label="0">0</button><button data-act="pin-ok" aria-label="Conferma">OK</button>';
-  return '<section class="screen"><h1>'+title+'</h1><p>'+sub+'</p>'+banner()+'<div class="pin-dots" aria-label="PIN inserito: '+st.pin.length+' cifre">'+dots+'</div><div class="pad-grid">'+keys+'</div></section>';
+  [1,2,3,4,5,6,7,8,9].forEach(n=>{keys+='<button data-act="pin-digit" data-v="'+n+'">'+n+'</button>'});
+  keys+=len?'<button class="nil" tabindex="-1" aria-hidden="true"></button>':'<button class="ghost ok" data-act="pin-ok" aria-label="Conferma">OK</button>';
+  keys+='<button data-act="pin-digit" data-v="0">0</button><button class="ghost" data-act="pin-back" aria-label="Cancella">&#9003;</button>';
+  const seg=setup?'<div class="plen" id="plen" role="group" aria-label="Lunghezza del PIN"'+(st.pin||st.pinFirst?' hidden':'')+'>'
+    +[4,6].map(n=>'<button data-act="pin-len" data-v="'+n+'" aria-pressed="'+(st.pinLen===n)+'">'+n+' cifre</button>').join('')+'</div>':'';
+  return '<section class="pinscr">'+wm()
+    +'<p class="plab'+(st.error?' err':'')+'" id="plab" role="status">'+esc(pinLabel())+'</p>'
+    +'<div class="pdots" id="pdots" aria-hidden="true">'+dotsHtml(dotCount())+'</div>'+seg
+    +'<div class="ppad">'+keys+'</div>'
+    +'<div class="pfoot">'+(setup?'':'<button class="link" data-act="forgot">PIN dimenticato?</button>')+'</div></section>';
 }
 
-function viewSetPin(){
-  return pinView('Scegli un PIN',st.pinFirst?'Ripeti lo stesso PIN (4-6 cifre).':'Da 4 a 6 cifre. Lo chiederò ogni volta che apri l\'app.');
+function viewSetPin(){return pinView();}
+function viewLock(){return pinView();}
+
+function pinPaint(){
+  const d=document.getElementById('pdots');
+  if(!d) return;
+  const n=dotCount();
+  if(d.children.length!==n) d.innerHTML=dotsHtml(n);
+  [...d.children].forEach((el,i)=>el.classList.toggle('on',i<st.pin.length));
+  const seg=document.getElementById('plen');
+  if(seg) seg.hidden=!!(st.pin||st.pinFirst);
 }
 
-function viewLock(){
-  return pinView('Bloccato','Inserisci il PIN.');
+function pinSay(text,err){
+  const l=document.getElementById('plab');
+  if(!l) return;
+  l.textContent=text;
+  l.classList.toggle('err',!!err);
+}
+
+function pinFail(msg){
+  const d=document.getElementById('pdots');
+  st.error=msg;
+  pinSay(msg,true);
+  if(d){d.classList.remove('shake');void d.offsetWidth;d.classList.add('shake');}
+  setTimeout(()=>{st.pin='';st.pinBusy=false;if(d)d.classList.remove('shake');pinPaint();},450);
 }
 
 function detail(){
@@ -159,6 +194,7 @@ async function enterApp(){
   if(!st.me) throw new Error('Questo account non è collegato a nessuna coppia');
   await loadMonth();
   st.screen=hasPin(localStorage)?'lock':'setpin';
+  st.pinLen=pinLength(localStorage)||4;
   st.pin='';
   st.pinFirst='';
   st.error='';
@@ -177,30 +213,74 @@ async function boot(){
 }
 
 async function submitPin(){
+  st.pinBusy=true;
+  const d=document.getElementById('pdots');
   try{
     if(st.screen==='lock'){
-      if(await checkPin(st.pin,localStorage)){st.screen='app';st.error='';}
-      else st.error='PIN sbagliato';
-      st.pin='';
-    } else if(st.screen==='setpin'){
-      if(!st.pinFirst){
-        if(!validPin(st.pin)){st.error='Il PIN deve avere da 4 a 6 cifre';st.pin='';}
-        else{st.pinFirst=st.pin;st.pin='';st.error='';}
-      } else if(st.pin===st.pinFirst){
-        await setPin(st.pin,localStorage);
-        st.screen='app';st.pin='';st.pinFirst='';st.error='';
-      } else {
-        st.error='I due PIN non coincidono, riparti';st.pin='';st.pinFirst='';
+      if(await checkPin(st.pin,localStorage)){
+        if(d) d.classList.add('ok');
+        await wait(260);
+        Object.assign(st,{screen:'app',error:'',pin:'',pinBusy:false});
+        render();
+        return;
       }
+      pinFail('PIN sbagliato');
+      return;
     }
-    render();
-  }catch(e){showError(e);}
+    if(!st.pinFirst){
+      if(!validPin(st.pin)){pinFail('Il PIN deve avere da 4 a 6 cifre');return;}
+      st.pinFirst=st.pin;st.pin='';st.error='';st.pinBusy=false;
+      pinSay('Ripeti lo stesso PIN',false);
+      pinPaint();
+      return;
+    }
+    if(st.pin===st.pinFirst){
+      await setPin(st.pin,localStorage);
+      if(d) d.classList.add('ok');
+      await wait(260);
+      Object.assign(st,{screen:'app',error:'',pin:'',pinFirst:'',pinBusy:false});
+      render();
+      return;
+    }
+    st.pinFirst='';
+    pinFail('I due PIN non coincidono, riparti');
+  }catch(e){st.pinBusy=false;showError(e);}
+}
+
+async function signOutNow(){
+  await api.signOut();
+  localStorage.removeItem('manic-pin');
+  localStorage.removeItem('manic-pin-len');
+  Object.assign(st,{screen:'login',session:null,members:[],me:null,events:[],sheet:null,pin:'',pinFirst:'',pinBusy:false,forgot:false,error:''});
 }
 
 async function handle(act,t){
-  if(act==='pin-digit'){if(st.pin.length<6){st.pin+=t.dataset.v;st.error='';}render();return;}
-  if(act==='pin-back'){st.pin=st.pin.slice(0,-1);render();return;}
-  if(act==='pin-ok'){await submitPin();return;}
+  if(act==='pin-digit'){
+    if(st.pinBusy) return;
+    const max=pinLen()||6;
+    if(st.pin.length<max){
+      st.pin+=t.dataset.v;st.error='';st.forgot=false;
+      pinSay(pinLabel(),false);
+      pinPaint();
+      if(pinLen()&&st.pin.length===max) await submitPin();
+    }
+    return;
+  }
+  if(act==='pin-back'){
+    if(st.pinBusy) return;
+    st.pin=st.pin.slice(0,-1);st.error='';
+    pinSay(pinLabel(),false);
+    pinPaint();
+    return;
+  }
+  if(act==='pin-ok'){if(!st.pinBusy&&st.pin.length>=4) await submitPin();return;}
+  if(act==='pin-len'){st.pinLen=Number(t.dataset.v);st.pin='';st.error='';render();return;}
+  if(act==='forgot'){
+    if(!st.forgot){st.forgot=true;st.error='Tocca ancora per uscire: ti chiederò email e password';render();return;}
+    await signOutNow();
+    render();
+    return;
+  }
   if(act==='day'){st.sel=t.dataset.iso;st.sheet='day';st.adding=false;st.error='';}
   else if(act==='close'){st.sheet=null;st.adding=false;st.error='';}
   else if(act==='settings'){st.sheet='settings';st.error='';}
@@ -241,13 +321,9 @@ async function handle(act,t){
     st.me=st.members.find(x=>x.user_id===st.session.user.id);
     st.sheet=null;
   }
-  else if(act==='change-pin'){st.screen='setpin';st.pin='';st.pinFirst='';st.sheet=null;}
+  else if(act==='change-pin'){st.screen='setpin';st.pin='';st.pinFirst='';st.pinLen=pinLength(localStorage)||4;st.sheet=null;}
   else if(act==='lock-now'){st.screen='lock';st.pin='';st.sheet=null;}
-  else if(act==='logout'){
-    await api.signOut();
-    localStorage.removeItem('manic-pin');
-    Object.assign(st,{screen:'login',session:null,members:[],me:null,events:[],sheet:null,pin:'',pinFirst:''});
-  }
+  else if(act==='logout') await signOutNow();
   render();
 }
 
