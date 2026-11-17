@@ -250,9 +250,9 @@ function recapHtml(){
   if(i<0) return '';
   const c=list[i];
   const p=prevOf(list,i);
-  return '<div class="rc sx"><button class="x" data-act="recap-x" aria-label="Chiudi riepilogo">&times;</button><div class="eb">Riepilogo</div><h3>'+MESI[c.m]+'</h3>'+(p?'<div class="sub">confrontato con '+MESI[(c.m+11)%12].toLowerCase()+'</div>':'')
-    +'<div class="rc-top"><span class="big">'+c.total+'</span><span class="rc-l">atti, '+c.activeDays+(c.activeDays===1?' giorno':' giorni')+'</span>'+dl(c.total,p?p.total:null)+'</div>'
-    +rowsHtml(c.counts,p)+balHtml(c.counts)+'</div>';
+  return '<div class="rc sx"><button class="x" data-act="recap-x" aria-label="Chiudi riepilogo">&times;</button><div class="eb">Riepilogo di '+MESI[c.m].toLowerCase()+'</div>'
+    +'<div class="rc-top"><span class="big">'+c.total+'</span><span class="rc-l">atti in '+c.activeDays+(c.activeDays===1?' giorno':' giorni')+'</span>'+dl(c.total,p?p.total:null)+'</div>'
+    +'<button class="link rc-go" data-act="recap-open" data-v="'+c.key+'">Vedi i dettagli</button></div>';
 }
 
 function skStats(){
@@ -276,7 +276,7 @@ function viewCalendar(){
     +'<div class="hd">'+wm()+'<div class="hd-r"><button class="gear" data-act="stats" aria-label="Statistiche">'+BARS+'</button><button class="gear" data-act="settings" aria-label="Impostazioni">'+GEAR+'</button></div></div>'
     +banner()+retryBar()+recapHtml()
     +'<div class="mnav"><button data-act="prev" aria-label="Mese precedente">‹</button><h1>'+MESI[st.m]+' <i>'+st.y+'</i></h1><button data-act="next" aria-label="Mese successivo">›</button></div>'
-    +(sk?skStats():'<div class="stats"><span><b>'+stats.total+'</b>nel mese</span><span class="sep"></span><span><b>'+stats.activeDays+'</b>giorni</span><span class="sep"></span><span><b class="g">'+daysTogether(TOGETHER_SINCE,todayIso)+'</b>giorni insieme</span><span class="sep"></span><span><b class="t">'+ago+'</b>ultima volta</span></div>')
+    +(sk?skStats():'<div class="stats"><span><b>'+stats.total+'</b>atti nel mese</span><span class="sep"></span><span><b>'+stats.activeDays+'</b>giorni attivi</span><span class="sep"></span><span><b class="g">'+daysTogether(TOGETHER_SINCE,todayIso)+'</b>giorni insieme</span><span class="sep"></span><span><b class="t">'+ago+'</b>ultima volta</span></div>')
     +(sk?skFilters():'<div class="filters" role="group" aria-label="Filtra per tipo"><button class="fl" data-act="filter" data-v="" aria-pressed="'+(st.filter===null)+'">Tutti <span class="n">'+stats.total+'</span></button>'
     +TYPES.map(t=>'<button class="fl" style="--cc:var(--c-'+t+')" data-act="filter" data-v="'+t+'" aria-pressed="'+(st.filter===t)+'">'+icon(t,'sm')+t+' <span class="n">'+stats.counts[t]+'</span></button>').join('')+'</div>')
     +'<div class="dow">'+DOW.map(d=>'<span>'+d+'</span>').join('')+'</div><div class="grid" style="--rows:'+Math.ceil((offset+days)/7)+'">';
@@ -463,6 +463,11 @@ async function handle(act,t){
   else if(act==='stats-close'){st.page=null;st.error='';}
   else if(act==='retry-stats'){loadStats();}
   else if(act==='mo'){st.openMonth=st.openMonth===t.dataset.v?null:t.dataset.v;}
+  else if(act==='recap-open'){
+    st.recapOff=true;
+    try{localStorage.setItem(RECAP_KEY,monthKey(todayIso));}catch(err){console.warn('riepilogo non memorizzato',err);}
+    st.page='stats';st.openMonth=t.dataset.v;st.sheet=null;
+  }
   else if(act==='recap-x'){
     st.recapOff=true;
     try{localStorage.setItem(RECAP_KEY,monthKey(todayIso));}catch(err){console.warn('riepilogo non memorizzato',err);}
