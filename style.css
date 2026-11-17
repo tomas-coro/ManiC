@@ -246,3 +246,6 @@ body{background:var(--bg);color:var(--tx);font-family:var(--fb);-webkit-font-smo
 .dow{margin-bottom:8px}
 .hd-back{margin:6px 0 16px}
 .sx .cta{margin-top:10px}
+.hd-back{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;text-align:left}
+.hd-back .pg-t{text-align:center}
+.main{overscroll-behavior:contain}

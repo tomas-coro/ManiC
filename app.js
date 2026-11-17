@@ -251,11 +251,11 @@ function tabs(){
 }
 
 function viewStats(){
-  return '<div class="phone'+(st.sheet?' locked':'')+'"><div class="main sx"><div class="hd hd-back"><h1 class="pg-t">Statistiche</h1></div>'+banner()+recapHtml()+statsBody()+'</div>'+tabs()+'</div>';
+  return '<div class="phone'+(st.sheet?' locked':'')+'"><div class="main sx"><div class="hd hd-back"><button class="gear" data-act="tab-cal" aria-label="Torna al calendario">&lsaquo;</button><h1 class="pg-t">Statistiche</h1><span></span></div>'+banner()+recapHtml()+statsBody()+'</div>'+tabs()+'</div>';
 }
 
 function viewSettings(){
-  return '<div class="phone"><div class="main sx"><div class="hd hd-back"><h1 class="pg-t">Impostazioni</h1></div>'+banner()+settings()+'</div>'+tabs()+'</div>';
+  return '<div class="phone"><div class="main sx"><div class="hd hd-back"><button class="gear" data-act="tab-cal" aria-label="Torna al calendario">&lsaquo;</button><h1 class="pg-t">Impostazioni</h1><span></span></div>'+banner()+settings()+'</div>'+tabs()+'</div>';
 }
 
 function recapHtml(){
@@ -479,9 +479,11 @@ async function handle(act,t){
   else if(act==='retry-stats'){loadStats();}
   else if(act==='mo'){st.openMonth=st.openMonth===t.dataset.v?null:t.dataset.v;}
   else if(act==='recap-open'){
-    st.recapOff=true;
-    try{localStorage.setItem(RECAP_KEY,monthKey(todayIso));}catch(err){console.warn('riepilogo non memorizzato',err);}
-    st.page='stats';st.openMonth=t.dataset.v;st.sheet=null;
+    st.openMonth=t.dataset.v;
+    render();
+    const mo=root.querySelector('.mh[data-v="'+t.dataset.v+'"]');
+    if(mo) mo.scrollIntoView({block:'start'});
+    return;
   }
   else if(act==='recap-x'){
     st.recapOff=true;
@@ -537,6 +539,29 @@ root.addEventListener('click',async e=>{
   if(!t||t.dataset.act==='note') return;
   try{await handle(t.dataset.act,t);}catch(err){showError(err);}
 },true);
+
+let touch=null;
+root.addEventListener('touchstart',e=>{
+  const p=e.touches[0];
+  touch=e.touches.length===1&&!e.target.closest('.filters,input,.pad')?{x:p.clientX,y:p.clientY,sheet:!!e.target.closest('.sheet'),top:(e.target.closest('.sheet')||{}).scrollTop||0}:null;
+},{passive:true});
+root.addEventListener('touchend',async e=>{
+  if(!touch||st.screen!=='app') return;
+  const p=e.changedTouches[0];
+  const dx=p.clientX-touch.x;
+  const dy=p.clientY-touch.y;
+  const t0=touch;
+  touch=null;
+  let act=null;
+  if(t0.sheet){
+    if(dy>90&&dy>Math.abs(dx)*1.5&&t0.top===0) act='close';
+  }else if(!st.sheet&&Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5){
+    if(st.page) act=dx>0?'tab-cal':null;
+    else act=dx>0?'prev':'next';
+  }
+  if(!act) return;
+  try{await handle(act,null);}catch(err){showError(err);}
+},{passive:true});
 
 root.addEventListener('input',e=>{
   if(e.target.dataset&&e.target.dataset.act==='note') st.note=e.target.value;
