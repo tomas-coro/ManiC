@@ -146,3 +146,4 @@ body{background:var(--bg);color:var(--tx);font-family:var(--fb);-webkit-font-smo
 .sk-cell .num{color:var(--dm);opacity:.5}
 .sk-ic{width:15px;height:15px;border-radius:5px}
 .banner .link{display:block;margin-top:2px;color:var(--tx)}
+.main{padding-top:max(14px,env(safe-area-inset-top))}
