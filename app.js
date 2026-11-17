@@ -31,6 +31,9 @@ const st={
   pinLen:4,
   pinBusy:false,
   forgot:false,
+  gen:0,
+  loading:false,
+  loadErr:'',
   updReady:false,
   updMsg:'',
   version:''
@@ -174,20 +177,33 @@ function settings(){
     +'<button class="cta ghost" data-act="logout">Esci dall\'account</button>';
 }
 
+function skStats(){
+  return '<div class="stats" aria-hidden="true"><span><i class="sk sk-n"></i><i class="sk sk-l"></i></span><span class="sep"></span><span><i class="sk sk-n"></i><i class="sk sk-l"></i></span><span class="sep"></span><span><i class="sk sk-n w2"></i><i class="sk sk-l"></i></span></div>';
+}
+
+function skFilters(){
+  return '<div class="filters" aria-hidden="true">'+[64,92,86,84,74].map(w=>'<span class="fl"><i class="sk sk-p" style="width:'+w+'px"></i></span>').join('')+'</div>';
+}
+
+function retryBar(){
+  return st.loadErr?'<div class="banner" role="alert">'+esc(st.loadErr)+'<button class="link" data-act="retry">Riprova</button></div>':'';
+}
+
 function viewCalendar(){
-  const stats=monthStats(st.events);
+  const sk=st.loading||!!st.loadErr;
+  const stats=monthStats(sk?[]:st.events);
   const {offset,days}=monthGrid(st.y,st.m);
   const ago=agoLabel(daysSince(st.lastDate,todayIso));
-  let h='<div class="phone'+(st.sheet?' locked':'')+'"><div class="main">'
+  let h='<div class="phone'+(st.sheet?' locked':'')+(st.loadErr?' still':'')+'"><div class="main">'
     +'<div class="hd">'+wm()+'<button class="gear" data-act="settings" aria-label="Impostazioni">'+GEAR+'</button></div>'
-    +banner()
+    +banner()+retryBar()
     +'<div class="mnav"><button data-act="prev" aria-label="Mese precedente">‹</button><h1>'+MESI[st.m]+' <i>'+st.y+'</i></h1><button data-act="next" aria-label="Mese successivo">›</button></div>'
-    +'<div class="stats"><span><b>'+stats.total+'</b>nel mese</span><span class="sep"></span><span><b>'+stats.activeDays+'</b>giorni</span><span class="sep"></span><span><b class="t">'+ago+'</b>ultima volta</span></div>'
-    +'<div class="filters" role="group" aria-label="Filtra per tipo"><button class="fl" data-act="filter" data-v="" aria-pressed="'+(st.filter===null)+'">Tutti <span class="n">'+stats.total+'</span></button>'
-    +TYPES.map(t=>'<button class="fl" style="--cc:var(--c-'+t+')" data-act="filter" data-v="'+t+'" aria-pressed="'+(st.filter===t)+'">'+icon(t,'sm')+t+' <span class="n">'+stats.counts[t]+'</span></button>').join('')+'</div>'
+    +(sk?skStats():'<div class="stats"><span><b>'+stats.total+'</b>nel mese</span><span class="sep"></span><span><b>'+stats.activeDays+'</b>giorni</span><span class="sep"></span><span><b class="t">'+ago+'</b>ultima volta</span></div>')
+    +(sk?skFilters():'<div class="filters" role="group" aria-label="Filtra per tipo"><button class="fl" data-act="filter" data-v="" aria-pressed="'+(st.filter===null)+'">Tutti <span class="n">'+stats.total+'</span></button>'
+    +TYPES.map(t=>'<button class="fl" style="--cc:var(--c-'+t+')" data-act="filter" data-v="'+t+'" aria-pressed="'+(st.filter===t)+'">'+icon(t,'sm')+t+' <span class="n">'+stats.counts[t]+'</span></button>').join('')+'</div>')
     +'<div class="dow">'+DOW.map(d=>'<span>'+d+'</span>').join('')+'</div><div class="grid">';
   for(let i=0;i<offset;i++) h+='<span class="cell pad"></span>';
-  for(let d=1;d<=days;d++){
+  for(let d=1;d<=days&&!sk;d++){
     const id=isoDate(st.y,st.m,d);
     const types=typesOnDay(st.events,id);
     const cnt=countsOnDay(st.events,id);
@@ -195,6 +211,7 @@ function viewCalendar(){
     const cls=(types.length?' has':'')+(id===todayIso?' today':'')+(id===st.sel?' sel':'')+(id>todayIso?' fut':'')+(dim?' dim':'');
     h+='<button class="cell'+cls+'" data-act="day" data-iso="'+id+'" aria-label="'+d+' '+MESI[st.m]+(types.length?': '+types.map(t=>t+(cnt[t]>1?' x'+cnt[t]:'')).join(', '):'')+'"><span class="num">'+d+'</span><span class="ics">'+types.slice(0,4).map(t=>'<span class="icn">'+icon(t,'sm')+(cnt[t]>1?'<i>'+cnt[t]+'</i>':'')+'</span>').join('')+'</span></button>';
   }
+  if(sk) for(let d=1;d<=days;d++) h+='<span class="cell sk-cell"><span class="num">'+d+'</span><span class="sk sk-ic"></span></span>';
   h+='</div></div>';
   if(st.sheet==='day'&&st.sel) h+='<div class="sheet">'+detail()+'</div>';
   if(st.sheet==='settings') h+='<div class="sheet">'+settings()+'</div>';
@@ -212,23 +229,39 @@ function render(){
   updateBar();
 }
 
-async function loadMonth(){
-  const {from,to}=monthRange(st.y,st.m);
-  st.events=await api.loadEvents(from,to);
-  st.lastDate=await api.lastEventDate(todayIso);
+async function loadAll(){
+  const gen=++st.gen;
+  st.loading=true;st.loadErr='';
+  try{
+    if(!st.me){
+      const members=await api.loadMembers();
+      const me=members.find(x=>x.user_id===st.session.user.id)||null;
+      if(!me) throw new Error('Questo account non è collegato a nessuna coppia');
+      if(gen!==st.gen) return;
+      st.members=members;st.me=me;
+    }
+    const {from,to}=monthRange(st.y,st.m);
+    const events=await api.loadEvents(from,to);
+    const lastDate=await api.lastEventDate(todayIso);
+    if(gen!==st.gen) return;
+    st.events=events;st.lastDate=lastDate;
+  }catch(e){
+    console.warn('caricamento dati non riuscito',e);
+    if(gen!==st.gen) return;
+    st.loadErr=e&&e.message?e.message:'Caricamento non riuscito';
+  }
+  st.loading=false;
+  if(st.screen==='app') render();
 }
 
 async function enterApp(){
-  st.members=await api.loadMembers();
-  st.me=st.members.find(x=>x.user_id===st.session.user.id)||null;
-  if(!st.me) throw new Error('Questo account non è collegato a nessuna coppia');
-  await loadMonth();
   st.screen=hasPin(localStorage)?'lock':'setpin';
   st.pinLen=pinLength(localStorage)||4;
   st.pin='';
   st.pinFirst='';
   st.error='';
   render();
+  loadAll();
 }
 
 async function boot(){
@@ -278,6 +311,7 @@ async function submitPin(){
 }
 
 async function signOutNow(){
+  st.gen++;st.loading=false;st.loadErr='';
   await api.signOut();
   localStorage.removeItem('manic-pin');
   localStorage.removeItem('manic-pin-len');
@@ -317,8 +351,9 @@ async function handle(act,t){
   else if(act==='prev'||act==='next'){
     const dt=new Date(st.y,st.m+(act==='prev'?-1:1),1);
     st.y=dt.getFullYear();st.m=dt.getMonth();st.error='';
-    await loadMonth();
+    loadAll();
   }
+  else if(act==='retry'){loadAll();}
   else if(act==='filter'){st.filter=t.dataset.v||null;}
   else if(act==='add'){st.adding=true;TYPES.forEach(t=>{st.counts[t]=0});st.note='';st.error='';}
   else if(act==='cancel'){st.adding=false;}
