@@ -26,6 +26,12 @@ export function typesOnDay(events,iso){
   return TYPES.filter(t=>here.has(t));
 }
 
+export function countsOnDay(events,iso){
+  const c={};
+  events.filter(e=>e.event_date===iso).forEach(e=>{c[e.type]=(c[e.type]||0)+1});
+  return c;
+}
+
 export function monthStats(events){
   const counts={};
   TYPES.forEach(t=>{counts[t]=0});

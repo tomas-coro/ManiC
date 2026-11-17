@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {TYPES,pad,isoDate,monthGrid,monthRange,typesOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice} from './logic.js';
+import {TYPES,pad,isoDate,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice} from './logic.js';
 
 test('pad aggiunge lo zero',()=>{
   assert.equal(pad(3),'03');
@@ -87,4 +87,14 @@ test('whoFromChoice traduce la scelta in assoluto',()=>{
 
 test('TYPES ha i 4 tipi nell\'ordine previsto',()=>{
   assert.deepEqual(TYPES,['sesso','pompino','leccata','anale']);
+});
+
+test('countsOnDay conta le ripetizioni dello stesso tipo nel giorno',()=>{
+  const ev=[
+    {event_date:'2026-11-14',type:'sesso'},{event_date:'2026-11-14',type:'sesso'},
+    {event_date:'2026-11-14',type:'sesso'},{event_date:'2026-11-14',type:'pompino'},
+    {event_date:'2026-11-15',type:'sesso'}
+  ];
+  assert.deepEqual(countsOnDay(ev,'2026-11-14'),{sesso:3,pompino:1});
+  assert.deepEqual(countsOnDay(ev,'2026-11-20'),{});
 });

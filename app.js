@@ -1,4 +1,4 @@
-import {TYPES,MESI,GIORNI,DOW,isoDate,monthGrid,monthRange,typesOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice} from './logic.js';
+import {TYPES,MESI,GIORNI,DOW,isoDate,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice} from './logic.js';
 import {FLAT} from './icons.js';
 import * as api from './api.js';
 import {validPin,hasPin,setPin,checkPin,LOCK_AFTER_MS} from './pin.js';
@@ -21,7 +21,7 @@ const st={
   sel:null,
   sheet:null,
   adding:false,
-  type:'sesso',
+  counts:{sesso:0,pompino:0,leccata:0,anale:0},
   whoChoice:'both',
   note:'',
   filter:null,
@@ -35,6 +35,8 @@ const icon=(t,cls)=>'<svg class="ic '+(cls||'')+'" viewBox="0 0 32 32" aria-hidd
 const wm=full=>'<img class="wmi" src="assets/wordmark-'+(full?'completo':'lettere')+'.png" alt="ManiC">';
 const LOCK='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 const GEAR='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
+
+const total=()=>TYPES.reduce((n,t)=>n+st.counts[t],0);
 
 function names(){
   const n={1:'',2:''};
@@ -89,10 +91,10 @@ function detail(){
   } else h+='<p class="empty">Niente in questo giorno.</p>';
   if(st.adding){
     const otherName=n[st.me.slot===1?2:1]||'L\'altro';
-    h+='<div class="f-lab">Cosa</div><div class="chips">'+TYPES.map(t=>'<button class="ch" style="--cc:var(--c-'+t+')" data-act="type" data-v="'+t+'" aria-pressed="'+(st.type===t)+'">'+icon(t,'sm')+t+'</button>').join('')+'</div>';
+    h+='<div class="f-lab">Cosa e quante volte</div><div class="steps">'+TYPES.map(t=>'<div class="stp'+(st.counts[t]?' on':'')+'" style="--cc:var(--c-'+t+')"><span class="stp-n">'+icon(t,'sm')+t+'</span><button class="stp-b" data-act="dec" data-v="'+t+'" aria-label="Una volta in meno: '+t+'"'+(st.counts[t]?'':' disabled')+'>-</button><b class="stp-c">'+st.counts[t]+'</b><button class="stp-b" data-act="inc" data-v="'+t+'" aria-label="Una volta in più: '+t+'">+</button></div>').join('')+'</div>';
     h+='<div class="f-lab">Chi (o chi riceve)</div><div class="chips">'+[['me','Tu'],['other',esc(otherName)],['both','Insieme']].map(p=>'<button class="ch" data-act="who" data-v="'+p[0]+'" aria-pressed="'+(st.whoChoice===p[0])+'">'+p[1]+'</button>').join('')+'</div>';
     h+='<div class="f-lab">Nota (facoltativa)</div><input class="note" type="text" maxlength="80" placeholder="una riga, se vuoi" value="'+esc(st.note)+'" data-act="note">';
-    h+='<button class="cta" data-act="save"'+(st.busy?' disabled':'')+'>Salva</button><button class="cta ghost" data-act="cancel">Annulla</button>';
+    h+='<button class="cta" data-act="save"'+(st.busy||!total()?' disabled':'')+'>Salva</button><button class="cta ghost" data-act="cancel">Annulla</button>';
   } else h+='<button class="cta" data-act="add">+ Aggiungi</button>';
   return h;
 }
@@ -117,7 +119,7 @@ function viewCalendar(){
     +'<div class="hd">'+wm()+'<button class="gear" data-act="settings" aria-label="Impostazioni">'+GEAR+'</button></div>'
     +banner()
     +'<div class="mnav"><button data-act="prev" aria-label="Mese precedente">‹</button><h1>'+MESI[st.m]+' <i>'+st.y+'</i></h1><button data-act="next" aria-label="Mese successivo">›</button></div>'
-    +'<div class="stats"><span><b>'+stats.total+'</b>nel mese</span><span class="sep"></span><span><b>'+stats.activeDays+'</b>giorni</span><span class="sep"></span><span>ultima: '+ago+'</span></div>'
+    +'<div class="stats"><span><b>'+stats.total+'</b>nel mese</span><span class="sep"></span><span><b>'+stats.activeDays+'</b>giorni</span><span class="sep"></span><span><b class="t">'+ago+'</b>ultima volta</span></div>'
     +'<div class="filters" role="group" aria-label="Filtra per tipo"><button class="fl" data-act="filter" data-v="" aria-pressed="'+(st.filter===null)+'">Tutti <span class="n">'+stats.total+'</span></button>'
     +TYPES.map(t=>'<button class="fl" style="--cc:var(--c-'+t+')" data-act="filter" data-v="'+t+'" aria-pressed="'+(st.filter===t)+'">'+icon(t,'sm')+t+' <span class="n">'+stats.counts[t]+'</span></button>').join('')+'</div>'
     +'<div class="dow">'+DOW.map(d=>'<span>'+d+'</span>').join('')+'</div><div class="grid">';
@@ -125,9 +127,10 @@ function viewCalendar(){
   for(let d=1;d<=days;d++){
     const id=isoDate(st.y,st.m,d);
     const types=typesOnDay(st.events,id);
+    const cnt=countsOnDay(st.events,id);
     const dim=st.filter&&types.length&&!types.includes(st.filter);
     const cls=(types.length?' has':'')+(id===todayIso?' today':'')+(id===st.sel?' sel':'')+(id>todayIso?' fut':'')+(dim?' dim':'');
-    h+='<button class="cell'+cls+'" data-act="day" data-iso="'+id+'" aria-label="'+d+' '+MESI[st.m]+(types.length?': '+types.join(', '):'')+'"><span class="num">'+d+'</span><span class="ics">'+types.slice(0,4).map(t=>icon(t,'sm')).join('')+'</span></button>';
+    h+='<button class="cell'+cls+'" data-act="day" data-iso="'+id+'" aria-label="'+d+' '+MESI[st.m]+(types.length?': '+types.map(t=>t+(cnt[t]>1?' x'+cnt[t]:'')).join(', '):'')+'"><span class="num">'+d+'</span><span class="ics">'+types.slice(0,4).map(t=>'<span class="icn">'+icon(t,'sm')+(cnt[t]>1?'<i>'+cnt[t]+'</i>':'')+'</span>').join('')+'</span></button>';
   }
   h+='</div></div>';
   if(st.sheet==='day'&&st.sel) h+='<div class="sheet">'+detail()+'</div>';
@@ -208,14 +211,19 @@ async function handle(act,t){
     await loadMonth();
   }
   else if(act==='filter'){st.filter=t.dataset.v||null;}
-  else if(act==='add'){st.adding=true;st.note='';st.error='';}
+  else if(act==='add'){st.adding=true;TYPES.forEach(t=>{st.counts[t]=0});st.note='';st.error='';}
   else if(act==='cancel'){st.adding=false;}
-  else if(act==='type'){st.type=t.dataset.v;}
+  else if(act==='inc'){if(st.counts[t.dataset.v]<20) st.counts[t.dataset.v]++;}
+  else if(act==='dec'){if(st.counts[t.dataset.v]>0) st.counts[t.dataset.v]--;}
   else if(act==='who'){st.whoChoice=t.dataset.v;}
   else if(act==='save'){
+    const list=[];
+    TYPES.forEach(ty=>{for(let i=0;i<st.counts[ty];i++) list.push(ty)});
+    if(!list.length) return;
     st.busy=true;render();
-    const saved=await api.addEvent({couple_id:st.me.couple_id,event_date:st.sel,type:st.type,who:whoFromChoice(st.whoChoice,st.me.slot),note:st.note.trim()});
-    st.events.push(saved);
+    const who=whoFromChoice(st.whoChoice,st.me.slot);
+    const saved=await Promise.all(list.map(ty=>api.addEvent({couple_id:st.me.couple_id,event_date:st.sel,type:ty,who,note:st.note.trim()})));
+    st.events.push(...saved);
     st.lastDate=await api.lastEventDate(todayIso);
     st.adding=false;st.busy=false;
   }
