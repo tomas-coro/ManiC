@@ -1,15 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validPin,hasPin,setPin,checkPin,LOCK_AFTER_MS} from './pin.js';
+import {validPin,hasPin,setPin,checkPin} from './pin.js';
 
 function fakeStorage(){
   const m=new Map();
   return {getItem:k=>m.has(k)?m.get(k):null,setItem:(k,v)=>{m.set(k,String(v))}};
 }
 
-test('LOCK_AFTER_MS è un minuto',()=>{
-  assert.equal(LOCK_AFTER_MS,60000);
-});
 
 test('validPin accetta 4-6 cifre e nient\'altro',()=>{
   assert.equal(validPin('1234'),true);

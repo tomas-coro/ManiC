@@ -1,7 +1,7 @@
 import {TYPES,MESI,GIORNI,DOW,isoDate,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice} from './logic.js';
 import {FLAT} from './icons.js';
 import * as api from './api.js';
-import {validPin,hasPin,setPin,checkPin,LOCK_AFTER_MS} from './pin.js';
+import {validPin,hasPin,setPin,checkPin} from './pin.js';
 
 const root=document.getElementById('root');
 const now=new Date();
@@ -26,8 +26,7 @@ const st={
   note:'',
   filter:null,
   pin:'',
-  pinFirst:'',
-  hiddenAt:0
+  pinFirst:''
 };
 
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -277,13 +276,6 @@ root.addEventListener('submit',async e=>{
     st.busy=false;
     await enterApp();
   }catch(err){showError(err);}
-});
-
-document.addEventListener('visibilitychange',()=>{
-  if(document.hidden){st.hiddenAt=Date.now();return;}
-  if(st.screen==='app'&&st.hiddenAt&&Date.now()-st.hiddenAt>LOCK_AFTER_MS){
-    st.screen='lock';st.pin='';st.sheet=null;render();
-  }
 });
 
 if('serviceWorker' in navigator){

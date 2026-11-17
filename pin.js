@@ -1,4 +1,3 @@
-export const LOCK_AFTER_MS=60000;
 const KEY='manic-pin';
 const ITERATIONS=150000;
 
