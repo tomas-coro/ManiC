@@ -150,3 +150,4 @@ body{background:var(--bg);color:var(--tx);font-family:var(--fb);-webkit-font-smo
 .main{display:flex;flex-direction:column;padding-bottom:max(20px,env(safe-area-inset-bottom))}
 .main>*{flex:none}
 .main>.grid{flex:1 1 auto}
+@media (max-width:500px){.phone{padding-top:env(safe-area-inset-top)}.main{padding-top:14px}}
