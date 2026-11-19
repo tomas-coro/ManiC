@@ -22,6 +22,7 @@ const st={
   allErr:'',
   allLoading:false,
   page:null,
+  editName:null,
   statsView:'mese',
   statsMo:null,
   statsDay:null,
@@ -183,17 +184,38 @@ function detail(){
   return h;
 }
 
+const SET_ICO={
+  lock:'<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
+  shield:'<svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/></svg>',
+  clock:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg>',
+  sync:'<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>'
+};
+
+function setRow(act,ico,label,right,extra){
+  return '<button class="s-r'+(extra||'')+'" data-act="'+act+'"><span class="s-ico">'+ico+'</span><span class="s-l">'+label+'</span>'+(right?'<span class="s-v">'+right+'</span>':'')+'<span class="s-c">&rsaquo;</span></button>';
+}
+
+function nameRow(who,label,name,slot){
+  const ini=esc((name||'?').trim().charAt(0).toUpperCase()||'?');
+  const av='<span class="s-av'+(slot===2?' two':'')+'">'+ini+'</span>';
+  if(st.editName===who){
+    return '<div class="s-edit">'+av+'<input class="note" type="text" maxlength="30" value="'+esc(name)+'" data-name="'+who+'" autofocus aria-label="'+label+'"><button class="s-sv" data-act="save-name" data-v="'+who+'">Salva</button><button class="s-cn" data-act="cancel-name" aria-label="Annulla">&times;</button></div>';
+  }
+  return '<button class="s-r" data-act="edit-name" data-v="'+who+'">'+av+'<span class="s-l">'+label+'</span><span class="s-v">'+esc(name)+'</span><span class="s-c">&rsaquo;</span></button>';
+}
+
 function settings(){
   const n=names();
   const other=st.members.find(x=>x.user_id!==st.me.user_id);
-  return '<div class="f-lab">Il tuo nome</div><input class="note" type="text" maxlength="30" value="'+esc(n[st.me.slot])+'" data-name="me">'
-    +'<div class="f-lab">Il suo nome</div><input class="note" type="text" maxlength="30" value="'+esc(other?other.display_name:'')+'" data-name="other">'
-    +'<button class="cta" data-act="save-names">Salva i nomi</button>'
-    +'<button class="cta ghost" data-act="change-pin">Cambia PIN</button>'
-    +'<button class="cta ghost" data-act="lock-now">Blocca ora</button>'
-    +'<div class="f-lab">App</div><p class="ver">Versione '+esc(st.version||'...')+(st.updMsg?' · '+esc(st.updMsg):'')+'</p>'
-    +(st.updReady?'<button class="cta" data-act="upd-reload">Aggiorna ora</button>':'<button class="cta ghost" data-act="check-update">Controlla aggiornamenti</button>')
-    +'<button class="cta ghost" data-act="logout">Esci dall\'account</button>';
+  const mySlot=st.me.slot;
+  const upd=st.updReady
+    ?'<button class="s-r gold" data-act="upd-reload"><span class="s-ico">'+SET_ICO.sync+'</span><span class="s-l">Aggiorna ora</span><span class="s-v">'+esc(st.updMsg||'Nuova versione')+'</span></button>'
+    :setRow('check-update',SET_ICO.sync,'Controlla aggiornamenti',esc(st.updMsg));
+  return '<div class="s-gl">Profilo</div><div class="s-grp">'+nameRow('me','Il tuo nome',n[mySlot],mySlot)+nameRow('other','Il suo nome',other?other.display_name:'',mySlot===1?2:1)+'</div>'
+    +'<div class="s-gl">Sicurezza</div><div class="s-grp">'+setRow('change-pin',SET_ICO.lock,'Cambia PIN','')+setRow('lock-now',SET_ICO.shield,'Blocca ora','')+'</div>'
+    +'<div class="s-gl">App</div><div class="s-grp"><div class="s-r static"><span class="s-ico">'+SET_ICO.clock+'</span><span class="s-l">Versione</span><span class="s-v">'+esc(st.version||'...')+'</span></div>'+upd+'</div>'
+    +'<div class="s-gl">Account</div><div class="s-grp"><button class="s-r red" data-act="logout">Esci dall\'account</button></div>'
+    +'<p class="s-ft">ManiC &middot; solo per voi due</p>';
 }
 
 function recapSeen(){
@@ -231,7 +253,7 @@ function togetherHtml(){
 
 const MESI_BREVI=['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
 const DOW_FULL=['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
-const HEAT_WEEKS=26;
+const HEAT_WEEKS=53;
 const HEAT_MONTHS=12;
 
 function monthEntry(key,list){
@@ -255,6 +277,19 @@ function monthKeysFrom(startIso,endIso){
   return out;
 }
 
+function gitMap(h,sel){
+  const lv=n=>n>=3?'l3':n===2?'l2':n===1?'l1':'';
+  const cells=h.cells.map((n,i)=>n===null?'<i class="n"></i>':'<i class="'+lv(n)+(sel&&monthKey(h.isos[i])===sel?' sel':'')+'"></i>').join('');
+  const labels=h.labels.filter((l,i)=>!h.labels[i+1]||h.labels[i+1].col-l.col>=3).map(l=>'<span style="grid-column:'+(l.col+1)+'">'+MESI_BREVI[l.m]+'</span>').join('');
+  const cols='repeat('+h.cols+',14px)';
+  return '<div class="gm" role="img" aria-label="Mappa dei giorni con atti, ultime '+h.cols+' settimane"><div class="gm-d"><span>Lun</span><span>Mer</span><span>Ven</span></div><div class="gm-s"><div class="gm-m" style="grid-template-columns:'+cols+'">'+labels+'</div><div class="gm-g" style="grid-template-columns:'+cols+'">'+cells+'</div></div></div><div class="scale"><span>meno</span><i></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><span>più</span></div>';
+}
+
+function recentMap(){
+  const h=heatMap(st.all,TOGETHER_SINCE,todayIso,HEAT_WEEKS);
+  return '<div class="s-card"><div class="lab">Mappa dei giorni <span class="sub">ultime '+h.cols+' settimane</span></div>'+gitMap(h,null)+'</div>';
+}
+
 function heatHtml(){
   const f=st.heatF;
   const evs=f?st.all.filter(e=>e.type===f):st.all;
@@ -266,8 +301,6 @@ function heatHtml(){
   const pk=prevMonthKey(cur.y,cur.m);
   const prev=keys.includes(pk)?monthEntry(pk,list):null;
   const lv=n=>n>=3?'l3':n===2?'l2':n===1?'l1':'';
-  const cells=h.cells.map((n,i)=>n===null?'<i class="n"></i>':'<i class="'+lv(n)+(monthKey(h.isos[i])===sel?' sel':'')+'"></i>').join('');
-  const labels=h.labels.filter((l,i)=>!h.labels[i+1]||h.labels[i+1].col-l.col>=3).map(l=>'<span style="grid-column:'+(l.col+1)+'">'+MESI_BREVI[l.m]+'</span>').join('');
   const chips='<div class="hfl" role="group" aria-label="Filtra per tipo"><button data-act="hf" data-v="" aria-pressed="'+(f===null)+'">Tutti</button>'+TYPES.map(t=>'<button data-act="hf" data-v="'+t+'" aria-pressed="'+(f===t)+'">'+icon(t,'sm')+t+'</button>').join('')+'</div>';
   const strip='<div class="hms" role="group" aria-label="Mese">'+keys.map(k=>{const e=monthEntry(k,list);return '<button data-act="hmo" data-v="'+k+'" aria-pressed="'+(k===sel)+'"><span>'+MESI_BREVI[e.m]+'</span><b>'+(f?e.counts[f]:e.total)+'</b></button>';}).join('')+'</div>';
   const big=f?cur.counts[f]:cur.total;
@@ -277,8 +310,7 @@ function heatHtml(){
   const mx=Math.max(...wd,1);
   const wdh='<div class="lab" style="margin-top:18px">Giorni della settimana, '+MESI[cur.m].toLowerCase()+'</div><div class="hwd">'+wd.map((v,i)=>'<div'+(v===mx&&v>0?' class="mx"':'')+'><b>'+v+'</b><i style="height:'+Math.round(v/mx*54)+'px"></i><span>'+DOW[i]+'</span></div>').join('')+'</div>';
   return '<div class="hmb"'+(f?' style="--c:var(--c-'+f+')"':'')+'>'+chips
-    +'<div class="hmap" role="img" aria-label="Mappa dei giorni con atti, ultime '+h.cols+' settimane"><div class="yl" style="grid-template-columns:repeat('+h.cols+',1fr)">'+labels+'</div><div class="yr has" style="grid-template-columns:repeat('+h.cols+',1fr)">'+cells+'</div><div class="scale"><span>meno</span><i></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><span>più</span></div></div>'
-    +strip+det+wdh+'</div>';
+    +gitMap(h,sel)+strip+det+wdh+'</div>';
 }
 
 function recHtml(){
@@ -366,6 +398,7 @@ function monthView(list){
   const per=cur.activeDays?(cur.total/cur.activeDays).toFixed(1).replace('.',','):'0';
   let h='<div class="s-mn"><button data-act="smp" aria-label="Mese precedente"'+(idx===0?' disabled':'')+'>&lsaquo;</button><div>'+MESI[cur.m]+'<i>'+cur.y+'</i></div><button data-act="smn" aria-label="Mese successivo"'+(idx===keys.length-1?' disabled':'')+'>&rsaquo;</button></div>';
   h+='<div class="s-card"><div class="s-kp"><div><b>'+cur.total+'</b><small>atti '+dl(cur.total,prev?prev.total:null)+'</small></div><div><b>'+cur.activeDays+'</b><small>giorni attivi '+dl(cur.activeDays,prev?prev.activeDays:null)+'</small></div><div><b>'+per+'</b><small>per giorno attivo</small></div></div></div>';
+  h+=recentMap();
   h+=splitCard('Tipi',cur.counts);
   h+='<div class="s-card"><div class="lab">Giorni</div>'+dayCells(cur.y,cur.m,st.statsDay)+'</div>';
   const bal=balHtml(cur.counts);
@@ -386,11 +419,11 @@ function allView(list){
   const cur=monthEntry(sel,list);
   const tot=monthStats(st.all);
   let h='<div class="s-card">'+togetherHtml()+'</div>';
+  h+='<div class="s-card"><div class="lab">Mappa dei giorni</div>'+heatHtml()+'</div>';
   h+='<div class="s-card"><div class="lab">Mese per mese <span class="sub">tocca una colonna</span></div>'+monthBars(list,keys,sel)+'<div class="s-day s-go"><span><b>'+MESI[cur.m]+'</b> · '+cur.total+' atti in '+cur.activeDays+(cur.activeDays===1?' giorno':' giorni')+'</span><button class="link" data-act="sgo" data-v="'+sel+'">Apri</button></div></div>';
   h+=splitCard('Totali',tot.counts);
   const bal=balHtml(tot.counts);
   if(bal) h+='<div class="s-card"><div class="lab">Bilancio da sempre</div>'+bal+'</div>';
-  h+='<div class="s-card"><div class="lab">Mappa dei giorni</div>'+heatHtml()+'</div>';
   h+='<div class="s-card"><div class="lab">Record e abitudini</div>'+recHtml()+'</div>';
   return h;
 }
@@ -579,6 +612,7 @@ function renderApp(){
     }
     shownMonth=mKey;
   }
+  root.querySelectorAll('.gm-s').forEach(e=>{if(!e._s){e._s=1;e.scrollLeft=e.scrollWidth;}});
   sync(phone,[['tabs',tabs()]],main);
   const tb=phone.querySelector(':scope > .tabs');
   if(tb) phone.style.setProperty('--tabh',tb.offsetHeight+'px');
@@ -794,7 +828,7 @@ async function signOutNow(){
   localStorage.removeItem('manic-pin');
   localStorage.removeItem('manic-pin-len');
   allGen++;
-  Object.assign(st,{screen:'login',session:null,offline:false,fromCache:false,syncAt:null,members:[],me:null,events:[],all:null,allErr:'',allLoading:false,page:null,statsView:'mese',statsMo:null,statsDay:null,heatF:null,heatMo:null,recapOff:false,sheet:null,pin:'',pinFirst:'',pinBusy:false,forgot:false,error:''});
+  Object.assign(st,{screen:'login',session:null,offline:false,fromCache:false,syncAt:null,members:[],me:null,events:[],all:null,allErr:'',allLoading:false,page:null,editName:null,statsView:'mese',statsMo:null,statsDay:null,heatF:null,heatMo:null,recapOff:false,sheet:null,pin:'',pinFirst:'',pinBusy:false,forgot:false,error:''});
 }
 
 async function handle(act,t){
@@ -826,7 +860,7 @@ async function handle(act,t){
   }
   if(act==='day'){st.sel=t.dataset.iso;st.sheet='day';st.adding=false;st.error='';}
   else if(act==='close'){st.sheet=null;st.adding=false;st.error='';}
-  else if(act==='settings'){st.page='settings';st.sheet=null;st.error='';}
+  else if(act==='settings'){st.page='settings';st.sheet=null;st.error='';st.editName=null;}
   else if(act==='prev'||act==='next'){
     const dt=new Date(st.y,st.m+(act==='prev'?-1:1),1);
     st.y=dt.getFullYear();st.m=dt.getMonth();st.error='';st.dir=act==='prev'?-1:1;
@@ -870,7 +904,7 @@ async function handle(act,t){
   else if(act==='inc'){if(st.counts[t.dataset.v]<20) st.counts[t.dataset.v]++;}
   else if(act==='dec'){if(st.counts[t.dataset.v]>0) st.counts[t.dataset.v]--;}
   else if(act==='who'){st.whoChoice=t.dataset.v;}
-  else if(st.offline&&(act==='save'||act==='del'||act==='save-names')){
+  else if(st.offline&&(act==='save'||act==='del'||act==='save-name')){
     showError(new Error('Sei offline: serve la rete per modificare'));
     return;
   }
@@ -896,16 +930,20 @@ async function handle(act,t){
     st.lastDate=await api.lastEventDate(todayIso);
     toast('Eliminato');
   }
-  else if(act==='save-names'){
-    const me=root.querySelector('[data-name="me"]').value.trim();
-    const other=root.querySelector('[data-name="other"]').value.trim();
-    const o=st.members.find(x=>x.user_id!==st.me.user_id);
-    await api.renameMember(st.me.user_id,me);
-    if(o) await api.renameMember(o.user_id,other);
+  else if(act==='edit-name'){st.editName=t.dataset.v;}
+  else if(act==='cancel-name'){st.editName=null;}
+  else if(act==='save-name'){
+    const who=t.dataset.v;
+    const val=root.querySelector('[data-name="'+who+'"]').value.trim();
+    if(!val){showError(new Error('Scrivi un nome'));return;}
+    const target=who==='me'?st.me:st.members.find(x=>x.user_id!==st.me.user_id);
+    if(!target) return;
+    await api.renameMember(target.user_id,val);
     st.members=await api.loadMembers();
     st.me=st.members.find(x=>x.user_id===st.session.user.id);
+    st.editName=null;
     persist();
-    toast('Nomi salvati');
+    toast('Nome salvato');
   }
   else if(act==='change-pin'){st.screen='setpin';st.pin='';st.pinFirst='';st.pinLen=pinLength(localStorage)||4;st.sheet=null;st.page=null;}
   else if(act==='lock-now'){st.screen='lock';st.pin='';st.sheet=null;st.page=null;}
