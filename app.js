@@ -1,4 +1,4 @@
-import {TYPES,MESI,GIORNI,DOW,isoDate,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice,TOGETHER_SINCE,balance,monthKey,monthsStats,prevMonthKey,prevOf,daysTogether,togetherLabel,heatMap} from './logic.js';
+import {TYPES,MESI,GIORNI,DOW,isoDate,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice,TOGETHER_SINCE,balance,monthKey,monthsStats,prevMonthKey,prevOf,daysTogether,togetherLabel,heatMap,weekdayCounts,records} from './logic.js';
 import {FLAT} from './icons.js';
 import * as api from './api.js';
 import {fetchSignature,shortVersion} from './update.js';
@@ -23,6 +23,8 @@ const st={
   page:null,
   openMonth:null,
   heatOpen:false,
+  heatF:null,
+  heatMo:null,
   recapOff:false,
   lastDate:null,
   y:now.getFullYear(),
@@ -229,20 +231,63 @@ function togetherHtml(){
 }
 
 const MESI_BREVI=['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+const DOW_FULL=['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
 const HEAT_WEEKS=26;
+const HEAT_MONTHS=12;
+
+function monthEntry(key,list){
+  const f=list.find(x=>x.key===key);
+  if(f) return f;
+  const [y,m]=key.split('-').map(Number);
+  const counts={};
+  TYPES.forEach(t=>{counts[t]=0});
+  return {key,y,m:m-1,total:0,activeDays:0,counts};
+}
+
+function monthKeysFrom(startIso,endIso){
+  const out=[];
+  let [y,m]=startIso.split('-').map(Number);
+  const [ey,em]=endIso.split('-').map(Number);
+  while(y<ey||(y===ey&&m<=em)){
+    out.push(y+'-'+String(m).padStart(2,'0'));
+    m++;
+    if(m>12){m=1;y++;}
+  }
+  return out;
+}
+
+function heatHead(open,sub){
+  return '<div class="hmx'+(open?' open':'')+'"><button class="mh" data-act="hm" aria-expanded="'+open+'"><span class="mn">Mappa dei giorni<small>'+sub+'</small></span><span class="chv">&rsaquo;</span></button>';
+}
 
 function heatHtml(){
-  const h=heatMap(st.all,TOGETHER_SINCE,todayIso,HEAT_WEEKS);
-  const lv=n=>n>=3?' l3':n===2?' l2':n===1?' l1':'';
-  const open=st.heatOpen;
-  const head='<div class="hmx'+(open?' open':'')+'"><button class="mh" data-act="hm" aria-expanded="'+open+'"><span class="mn">Mappa dei giorni<small>ultime '+h.cols+' settimane</small></span><span class="chv">&rsaquo;</span></button>';
-  if(!open) return head+'</div>';
-  const act=h.cells.filter(n=>n).length;
-  const days=h.cells.filter(n=>n!==null).length;
-  return head+'<div class="hmap" role="img" aria-label="Mappa dei giorni con atti, ultime '+h.cols+' settimane">'
-    +'<div class="yl" style="grid-template-columns:repeat('+h.cols+',1fr)">'+h.labels.filter((l,i)=>!h.labels[i+1]||h.labels[i+1].col-l.col>=3).map(l=>'<span style="grid-column:'+(l.col+1)+'">'+MESI_BREVI[l.m]+'</span>').join('')+'</div>'
-    +'<div class="yr" style="grid-template-columns:repeat('+h.cols+',1fr)">'+h.cells.map(n=>'<i class="'+(n===null?'n':lv(n).trim())+'"></i>').join('')+'</div>'
-    +'<div class="scale"><span>meno</span><i></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><span>più</span></div><div class="hmsum"><span><b>'+act+'</b>giorni con atti</span><span><b>'+Math.round(act/Math.max(days,1)*100)+'%</b>dei giorni</span></div></div></div>';
+  const f=st.heatF;
+  const evs=f?st.all.filter(e=>e.type===f):st.all;
+  const h=heatMap(evs,TOGETHER_SINCE,todayIso,HEAT_WEEKS);
+  if(!st.heatOpen) return heatHead(false,'ultime '+h.cols+' settimane · filtri, mesi, record')+'</div>';
+  const list=monthsStats(st.all);
+  const keys=monthKeysFrom(TOGETHER_SINCE,todayIso).slice(-HEAT_MONTHS);
+  const sel=st.heatMo&&keys.includes(st.heatMo)?st.heatMo:keys[keys.length-1];
+  const cur=monthEntry(sel,list);
+  const pk=prevMonthKey(cur.y,cur.m);
+  const prev=keys.includes(pk)?monthEntry(pk,list):null;
+  const lv=n=>n>=3?'l3':n===2?'l2':n===1?'l1':'';
+  const cells=h.cells.map((n,i)=>n===null?'<i class="n"></i>':'<i class="'+lv(n)+(monthKey(h.isos[i])===sel?' sel':'')+'"></i>').join('');
+  const labels=h.labels.filter((l,i)=>!h.labels[i+1]||h.labels[i+1].col-l.col>=3).map(l=>'<span style="grid-column:'+(l.col+1)+'">'+MESI_BREVI[l.m]+'</span>').join('');
+  const chips='<div class="hfl" role="group" aria-label="Filtra per tipo"><button data-act="hf" data-v="" aria-pressed="'+(f===null)+'">Tutti</button>'+TYPES.map(t=>'<button data-act="hf" data-v="'+t+'" aria-pressed="'+(f===t)+'">'+icon(t,'sm')+t+'</button>').join('')+'</div>';
+  const strip='<div class="hms" role="group" aria-label="Mese">'+keys.map(k=>{const e=monthEntry(k,list);return '<button data-act="hmo" data-v="'+k+'" aria-pressed="'+(k===sel)+'"><span>'+MESI_BREVI[e.m]+'</span><b>'+(f?e.counts[f]:e.total)+'</b></button>';}).join('')+'</div>';
+  const big=f?cur.counts[f]:cur.total;
+  const pbig=prev?(f?prev.counts[f]:prev.total):null;
+  const det='<div class="hdet"><div class="hdt">'+MESI[cur.m]+' '+cur.y+'</div><div class="hdn"><span class="hbig">'+big+'</span><span class="hsub">'+(f||'atti')+' '+dl(big,pbig)+'</span></div><div class="hsub" style="margin:2px 0 10px">'+cur.activeDays+(cur.activeDays===1?' giorno attivo':' giorni attivi')+'</div>'+(f||!cur.total?'':stackHtml(cur))+rowsHtml(cur.counts,prev)+'</div>';
+  const wd=weekdayCounts(evs,sel);
+  const mx=Math.max(...wd,1);
+  const wdh='<div class="lab" style="margin-top:18px">Giorni della settimana, '+MESI[cur.m].toLowerCase()+'</div><div class="hwd">'+wd.map((v,i)=>'<div'+(v===mx&&v>0?' class="mx"':'')+'><b>'+v+'</b><i style="height:'+Math.round(v/mx*54)+'px"></i><span>'+DOW[i]+'</span></div>').join('')+'</div>';
+  const r=records(st.all,TOGETHER_SINCE,todayIso);
+  const bd=r.bestDay.iso?Number(r.bestDay.iso.slice(8))+' '+MESI_BREVI[Number(r.bestDay.iso.slice(5,7))-1].toLowerCase():'-';
+  const rec='<div class="lab" style="margin-top:18px">Record e abitudini</div><div class="hrec"><div><small>GIORNO RECORD</small><b>'+bd+'</b><small>'+r.bestDay.n+' atti</small></div><div><small>SERIE PIÙ LUNGA</small><b>'+r.longestStreak+' giorni</b><small>di fila</small></div><div><small>GIORNO PREFERITO</small><b>'+(r.favWeekday===null?'-':DOW_FULL[r.favWeekday])+'</b><small>'+r.favCount+' atti</small></div><div><small>GIORNI CON ATTI</small><b>'+Math.round(r.activeDays/Math.max(r.totalDays,1)*100)+'%</b><small>'+r.activeDays+' su '+r.totalDays+'</small></div></div>';
+  return heatHead(true,'ultime '+h.cols+' settimane')+'<div class="hmb"'+(f?' style="--c:var(--c-'+f+')"':'')+'>'+chips
+    +'<div class="hmap" role="img" aria-label="Mappa dei giorni con atti, ultime '+h.cols+' settimane"><div class="yl" style="grid-template-columns:repeat('+h.cols+',1fr)">'+labels+'</div><div class="yr has" style="grid-template-columns:repeat('+h.cols+',1fr)">'+cells+'</div><div class="scale"><span>meno</span><i></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><span>più</span></div></div>'
+    +strip+det+wdh+rec+'</div></div>';
 }
 
 function statsBody(){
@@ -552,7 +597,7 @@ async function signOutNow(){
   localStorage.removeItem('manic-pin');
   localStorage.removeItem('manic-pin-len');
   allGen++;
-  Object.assign(st,{screen:'login',session:null,members:[],me:null,events:[],all:null,allErr:'',allLoading:false,page:null,openMonth:null,recapOff:false,sheet:null,pin:'',pinFirst:'',pinBusy:false,forgot:false,error:''});
+  Object.assign(st,{screen:'login',session:null,members:[],me:null,events:[],all:null,allErr:'',allLoading:false,page:null,openMonth:null,heatOpen:false,heatF:null,heatMo:null,recapOff:false,sheet:null,pin:'',pinFirst:'',pinBusy:false,forgot:false,error:''});
 }
 
 async function handle(act,t){
@@ -619,6 +664,8 @@ async function handle(act,t){
     try{localStorage.setItem(RECAP_KEY,monthKey(todayIso));}catch(err){console.warn('riepilogo non memorizzato',err);}
   }
   else if(act==='hm'){st.heatOpen=!st.heatOpen;}
+  else if(act==='hf'){st.heatF=t.dataset.v||null;}
+  else if(act==='hmo'){st.heatMo=t.dataset.v;}
   else if(act==='filter'){st.filter=t.dataset.v||null;}
   else if(act==='add'){st.adding=true;TYPES.forEach(t=>{st.counts[t]=0});st.note='';st.error='';}
   else if(act==='cancel'){st.adding=false;}

@@ -163,6 +163,7 @@ export function heatMap(events,startIso,todayIso,maxWeeks){
   const startWeek=Math.max(monday(first),endWeek-(maxWeeks-1)*7*DAY);
   const cols=Math.round((endWeek-startWeek)/(7*DAY))+1;
   const cells=[];
+  const isos=[];
   const labels=[];
   let lastM=-1;
   for(let w=0;w<cols;w++){
@@ -171,8 +172,42 @@ export function heatMap(events,startIso,todayIso,maxWeeks){
     if(m!==lastM){labels.push({col:w,m});lastM=m;}
     for(let i=0;i<7;i++){
       const t=ws+i*DAY;
-      cells.push(t<first||t>end?null:(counts[new Date(t).toISOString().slice(0,10)]||0));
+      const iso=new Date(t).toISOString().slice(0,10);
+      const inside=t>=first&&t<=end;
+      cells.push(inside?(counts[iso]||0):null);
+      isos.push(inside?iso:null);
     }
   }
-  return {cols,cells,labels};
+  return {cols,cells,isos,labels};
+}
+
+export function weekdayCounts(events,key){
+  const w=[0,0,0,0,0,0,0];
+  events.forEach(e=>{
+    if(key&&monthKey(e.event_date)!==key) return;
+    const [y,m,d]=e.event_date.split('-').map(Number);
+    w[(new Date(Date.UTC(y,m-1,d)).getUTCDay()+6)%7]++;
+  });
+  return w;
+}
+
+export function records(events,startIso,todayIso){
+  const DAY=864e5;
+  const day=iso=>{const [y,m,d]=iso.split('-').map(Number);return Date.UTC(y,m-1,d);};
+  const perDay={};
+  events.forEach(e=>{perDay[e.event_date]=(perDay[e.event_date]||0)+1;});
+  const dates=Object.keys(perDay).sort();
+  let best={iso:null,n:0};
+  let streak=0;
+  let longest=0;
+  let prev=null;
+  dates.forEach(iso=>{
+    if(perDay[iso]>best.n) best={iso,n:perDay[iso]};
+    streak=prev!==null&&day(iso)-prev===DAY?streak+1:1;
+    if(streak>longest) longest=streak;
+    prev=day(iso);
+  });
+  const wd=weekdayCounts(events,null);
+  const max=Math.max(...wd);
+  return {bestDay:best,longestStreak:longest,favWeekday:max>0?wd.indexOf(max):null,favCount:max,activeDays:dates.length,totalDays:Math.round((day(todayIso)-day(startIso))/DAY)+1};
 }

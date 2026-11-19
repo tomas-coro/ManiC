@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {TYPES,pad,isoDate,flowOf,balance,monthKey,monthsStats,prevMonthKey,deltas,prevOf,daysTogether,togetherLabel,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice,heatMap} from './logic.js';
+import {TYPES,pad,isoDate,flowOf,balance,monthKey,monthsStats,prevMonthKey,deltas,prevOf,daysTogether,togetherLabel,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice,heatMap,weekdayCounts,records} from './logic.js';
 
 test('pad aggiunge lo zero',()=>{
   assert.equal(pad(3),'03');
@@ -195,4 +195,32 @@ test('heatMap: non supera maxWeeks e ignora i giorni prima dell inizio',()=>{
   assert.equal(h.cells.length,26*7);
   const h2=heatMap([],'2026-11-18','2026-11-19',26);
   assert.deepEqual(h2.cells,[null,null,0,0,null,null,null]);
+});
+
+test('heatMap: isos allineati alle celle',()=>{
+  const h=heatMap([],'2026-11-18','2026-11-19',26);
+  assert.deepEqual(h.isos,[null,null,'2026-11-18','2026-11-19',null,null,null]);
+});
+
+test('weekdayCounts conta per giorno della settimana, anche solo di un mese',()=>{
+  const ev=[{event_date:'2026-11-16'},{event_date:'2026-11-16'},{event_date:'2026-11-22'},{event_date:'2026-10-05'}];
+  assert.deepEqual(weekdayCounts(ev,'2026-11'),[2,0,0,0,0,0,1]);
+  assert.deepEqual(weekdayCounts(ev,null),[3,0,0,0,0,0,1]);
+});
+
+test('records: giorno top, serie piu lunga, giorno preferito',()=>{
+  const ev=[{event_date:'2026-11-10'},{event_date:'2026-11-11'},{event_date:'2026-11-11'},{event_date:'2026-11-12'},{event_date:'2026-11-15'}];
+  const r=records(ev,'2026-11-01','2026-11-19');
+  assert.deepEqual(r.bestDay,{iso:'2026-11-11',n:2});
+  assert.equal(r.longestStreak,3);
+  assert.equal(r.activeDays,4);
+  assert.equal(r.totalDays,19);
+  assert.equal(r.favWeekday,2);
+});
+
+test('records senza eventi',()=>{
+  const r=records([],'2026-11-01','2026-11-19');
+  assert.equal(r.favWeekday,null);
+  assert.equal(r.longestStreak,0);
+  assert.equal(r.bestDay.n,0);
 });
