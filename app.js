@@ -11,6 +11,7 @@ const todayIso=isoDate(now.getFullYear(),now.getMonth(),now.getDate());
 const st={
   screen:'boot',
   error:'',
+  dir:0,
   busy:false,
   session:null,
   members:[],
@@ -250,12 +251,15 @@ function tabs(){
   return '<nav class="tabs" aria-label="Sezioni">'+b('cal','tab-cal',CAL,'Calendario',false)+b('stats','stats',BARS,'Statistiche',recapPending())+b('settings','settings',GEAR,'Impostazioni',false)+'</nav>';
 }
 
-function viewStats(){
-  return '<div class="phone'+(st.sheet?' locked':'')+'"><div class="main sx"><div class="hd hd-back"><button class="gear" data-act="tab-cal" aria-label="Torna al calendario">&lsaquo;</button><h1 class="pg-t">Statistiche</h1><span></span></div>'+banner()+recapHtml()+statsBody()+'</div>'+tabs()+'</div>';
+const BACK=t=>'<div class="hd hd-back"><button class="gear" data-act="tab-cal" aria-label="Torna al calendario">&lsaquo;</button><h1 class="pg-t">'+t+'</h1><span></span></div>';
+const body=h=>h?'<div class="sb">'+h+'</div>':'';
+
+function statsParts(){
+  return [['hd',BACK('Statistiche')],['banner',banner()],['recap',recapHtml()],['body',body(statsBody())]];
 }
 
-function viewSettings(){
-  return '<div class="phone"><div class="main sx"><div class="hd hd-back"><button class="gear" data-act="tab-cal" aria-label="Torna al calendario">&lsaquo;</button><h1 class="pg-t">Impostazioni</h1><span></span></div>'+banner()+settings()+'</div>'+tabs()+'</div>';
+function settingsParts(){
+  return [['hd',BACK('Impostazioni')],['banner',banner()],['body',body(settings())]];
 }
 
 function recapHtml(){
@@ -283,45 +287,142 @@ function retryBar(){
   return st.loadErr?'<div class="banner" role="alert">'+esc(st.loadErr)+'<button class="link" data-act="retry">Riprova</button></div>':'';
 }
 
-function viewCalendar(){
+function calParts(){
   const sk=st.loading||!!st.loadErr;
   const stats=monthStats(sk?[]:st.events);
   const {offset,days}=monthGrid(st.y,st.m);
   const ago=agoLabel(daysSince(st.lastDate,todayIso));
-  let h='<div class="phone'+(st.sheet?' locked':'')+(st.loadErr?' still':'')+'"><div class="main">'
-    +'<div class="hd">'+wm()+'</div>'
-    +banner()+retryBar()
-    +'<div class="mnav"><button data-act="prev" aria-label="Mese precedente">‹</button><h1>'+MESI[st.m]+' <i>'+st.y+'</i></h1><button data-act="next" aria-label="Mese successivo">›</button></div>'
-    +(sk?skStats():'<div class="stats"><span><b>'+stats.total+'</b>atti nel mese</span><span class="sep"></span><span><b>'+stats.activeDays+'</b>giorni attivi</span><span class="sep"></span><span><b class="g">'+daysTogether(TOGETHER_SINCE,todayIso)+'</b>giorni insieme</span><span class="sep"></span><span><b class="t">'+ago+'</b>ultima volta</span></div>')
-    +(sk?skFilters():'<div class="filters" role="group" aria-label="Filtra per tipo"><button class="fl" data-act="filter" data-v="" aria-pressed="'+(st.filter===null)+'">Tutti <span class="n">'+stats.total+'</span></button>'
-    +TYPES.map(t=>'<button class="fl" style="--cc:var(--c-'+t+')" data-act="filter" data-v="'+t+'" aria-pressed="'+(st.filter===t)+'">'+icon(t,'sm')+t+' <span class="n">'+stats.counts[t]+'</span></button>').join('')+'</div>')
-    +'<div class="dow">'+DOW.map(d=>'<span>'+d+'</span>').join('')+'</div><div class="grid" style="--rows:'+Math.ceil((offset+days)/7)+'">';
+  const P=[['hd','<div class="hd">'+wm()+'</div>'],['banner',banner()],['retry',retryBar()]];
+  P.push(['mnav','<div class="mnav"><button data-act="prev" aria-label="Mese precedente">‹</button><h1>'+MESI[st.m]+' <i>'+st.y+'</i></h1><button data-act="next" aria-label="Mese successivo">›</button></div>']);
+  P.push(['stats',(sk?skStats():'<div class="stats"><span><b>'+stats.total+'</b>atti nel mese</span><span class="sep"></span><span><b>'+stats.activeDays+'</b>giorni attivi</span><span class="sep"></span><span><b class="g">'+daysTogether(TOGETHER_SINCE,todayIso)+'</b>giorni insieme</span><span class="sep"></span><span><b class="t">'+ago+'</b>ultima volta</span></div>')]);
+  P.push(['filters',(sk?skFilters():'<div class="filters" role="group" aria-label="Filtra per tipo"><button class="fl" data-act="filter" data-v="" aria-pressed="'+(st.filter===null)+'">Tutti <span class="n">'+stats.total+'</span></button>'
+    +TYPES.map(t=>'<button class="fl" style="--cc:var(--c-'+t+')" data-act="filter" data-v="'+t+'" aria-pressed="'+(st.filter===t)+'">'+icon(t,'sm')+t+' <span class="n">'+stats.counts[t]+'</span></button>').join('')+'</div>')]);
+  P.push(['dow','<div class="dow">'+DOW.map(d=>'<span>'+d+'</span>').join('')+'</div>']);
+  let h='<div class="grid" style="--rows:'+Math.ceil((offset+days)/7)+'">';
   for(let i=0;i<offset;i++) h+='<span class="cell pad"></span>';
   for(let d=1;d<=days&&!sk;d++){
     const id=isoDate(st.y,st.m,d);
     const types=typesOnDay(st.events,id);
     const cnt=countsOnDay(st.events,id);
     const dim=st.filter&&types.length&&!types.includes(st.filter);
-    const cls=(types.length?' has':'')+(id===todayIso?' today':'')+(id===st.sel?' sel':'')+(id>todayIso?' fut':'')+(dim?' dim':'');
+    const cls=(types.length?' has':'')+(id===todayIso?' today':'')+(id>todayIso?' fut':'')+(dim?' dim':'');
     h+='<button class="cell'+cls+'" data-act="day" data-iso="'+id+'" aria-label="'+d+' '+MESI[st.m]+(types.length?': '+types.map(t=>t+(cnt[t]>1?' x'+cnt[t]:'')).join(', '):'')+'"><span class="num">'+d+'</span><span class="ics">'+types.slice(0,5).map(t=>'<span class="icn">'+icon(t,'sm')+(cnt[t]>1?'<i>'+cnt[t]+'</i>':'')+'</span>').join('')+'</span></button>';
   }
   if(sk) for(let d=1;d<=days;d++) h+='<span class="cell sk-cell"><span class="num">'+d+'</span><span class="sk sk-ic"></span></span>';
-  h+='</div></div>'+tabs();
-  if(st.sheet==='day'&&st.sel) h+='<div class="sheet">'+detail()+'</div>';
-  return h+'</div>';
+  h+='</div>';
+  P.push(['grid',h]);
+  return P;
 }
 
-let lastPage=null;
+function mk(html){
+  const t=document.createElement('template');
+  t.innerHTML=html;
+  return t.content.firstElementChild;
+}
+
+function sync(parent,parts,first){
+  const have=new Map();
+  for(const c of parent.children) if(c.dataset.r) have.set(c.dataset.r,c);
+  const keep=new Set();
+  let prev=first||null;
+  for(const [key,html] of parts){
+    if(!html) continue;
+    keep.add(key);
+    let el=have.get(key);
+    if(!el||el._h!==html){
+      const n=mk(html);
+      n.dataset.r=key;
+      n._h=html;
+      if(el) el.replaceWith(n);
+      el=n;
+    }
+    const want=prev?prev.nextSibling:parent.firstChild;
+    if(want!==el) parent.insertBefore(el,want);
+    prev=el;
+  }
+  have.forEach((el,key)=>{if(!keep.has(key)) el.remove();});
+}
+
+let shellPage;
+let shownMonth;
+const ORDER={cal:0,stats:1,settings:2};
+const EASE='cubic-bezier(.22,.8,.3,1)';
+const reduceMotion=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function anim(el,frames,ms,fill){
+  if(!el||!el.animate||reduceMotion()) return Promise.resolve();
+  return el.animate(frames,{duration:ms||250,easing:EASE,fill:fill||'backwards'}).finished.catch(()=>{});
+}
+
+function slideIn(el,dir,px){
+  return anim(el,[{transform:'translateX('+dir*px+'px)',opacity:0},{transform:'none',opacity:1}]);
+}
+
+function closeSheet(sheet){
+  sheet.classList.add('closing');
+  sheet.style.pointerEvents='none';
+  const from=sheet.style.transform||'translateY(0)';
+  anim(sheet,[{transform:from},{transform:'translateY(100%)'}],220,'forwards').then(()=>sheet.remove());
+}
+
+function appShell(){
+  let phone=root.querySelector(':scope > .phone');
+  if(!phone){
+    root.innerHTML='<div class="phone"><div class="main"></div></div>';
+    phone=root.firstElementChild;
+    shellPage=undefined;
+  }
+  return phone;
+}
+
+function renderApp(){
+  const phone=appShell();
+  const main=phone.firstElementChild;
+  const page=st.page==='stats'&&st.me?'stats':st.page==='settings'&&st.me?'settings':'cal';
+  const pageDir=shellPage===undefined||page===shellPage?0:Math.sign(ORDER[page]-ORDER[shellPage]);
+  if(page!==shellPage){
+    main.replaceChildren();
+    main.className=page==='cal'?'main':'main sx';
+    main.scrollTop=0;
+    shellPage=page;
+  }
+  phone.classList.toggle('locked',!!st.sheet&&page!=='settings');
+  phone.classList.toggle('still',page==='cal'&&!!st.loadErr);
+  sync(main,page==='stats'?statsParts():page==='settings'?settingsParts():calParts());
+  if(pageDir) slideIn(main,pageDir,28);
+  const mKey=st.y+'-'+st.m;
+  if(page==='cal'){
+    if(shownMonth!==undefined&&shownMonth!==mKey&&st.dir){
+      slideIn(main.querySelector('.mnav h1'),st.dir,40);
+      slideIn(main.querySelector('.grid'),st.dir,40);
+    }
+    shownMonth=mKey;
+  }
+  sync(phone,[['tabs',tabs()]],main);
+  root.querySelectorAll('.cell.sel').forEach(c=>c.classList.remove('sel'));
+  const open=page==='cal'&&st.sheet==='day'&&st.sel;
+  let sheet=phone.querySelector(':scope > .sheet:not(.closing)');
+  if(open){
+    if(!sheet){
+      phone.querySelectorAll(':scope > .sheet.closing').forEach(x=>x.remove());
+      phone.insertAdjacentHTML('beforeend','<div class="sheet"></div>');
+      sheet=phone.lastElementChild;
+    }
+    const h=detail();
+    if(sheet._h!==h){sheet.innerHTML=h;sheet._h=h;}
+    const c=main.querySelector('.cell[data-iso="'+st.sel+'"]');
+    if(c) c.classList.add('sel');
+  }else if(sheet) closeSheet(sheet);
+}
 
 function render(){
-  const keep=root.querySelector('.main');
-  const top=keep&&st.page===lastPage?keep.scrollTop:0;
-  lastPage=st.page;
-  const views={boot:'<p class="boot">Caricamento</p>',login:viewLogin,setpin:viewSetPin,lock:viewLock,app:()=>st.page==='stats'&&st.me?viewStats():st.page==='settings'&&st.me?viewSettings():viewCalendar()};
-  const v=views[st.screen];
-  root.innerHTML=typeof v==='function'?v():v;
-  const main=root.querySelector('.main');
-  if(main) main.scrollTop=top;
+  if(st.screen==='app'){
+    renderApp();
+  }else{
+    const views={boot:'<p class="boot">Caricamento</p>',login:viewLogin,setpin:viewSetPin,lock:viewLock};
+    const v=views[st.screen];
+    root.innerHTML=typeof v==='function'?v():v;
+  }
   updateBar();
 }
 
@@ -466,7 +567,7 @@ async function handle(act,t){
   else if(act==='settings'){st.page='settings';st.sheet=null;st.error='';}
   else if(act==='prev'||act==='next'){
     const dt=new Date(st.y,st.m+(act==='prev'?-1:1),1);
-    st.y=dt.getFullYear();st.m=dt.getMonth();st.error='';
+    st.y=dt.getFullYear();st.m=dt.getMonth();st.error='';st.dir=act==='prev'?-1:1;
     loadAll();
   }
   else if(act==='retry'){loadAll();}
@@ -541,9 +642,37 @@ root.addEventListener('click',async e=>{
 },true);
 
 let touch=null;
+const SWIPE=60;
+const CLOSE_DRAG=90;
+
+function springBack(el){
+  if(!el) return;
+  const from=el.style.transform||'none';
+  el.style.transform='';
+  el.style.opacity='';
+  anim(el,[{transform:from},{transform:'none'}],200);
+}
+
 root.addEventListener('touchstart',e=>{
   const p=e.touches[0];
-  touch=e.touches.length===1&&!e.target.closest('.filters,input,.pad')?{x:p.clientX,y:p.clientY,sheet:!!e.target.closest('.sheet'),top:(e.target.closest('.sheet')||{}).scrollTop||0}:null;
+  touch=e.touches.length===1&&!e.target.closest('.filters,input,.pad')?{x:p.clientX,y:p.clientY,sheet:!!e.target.closest('.sheet'),top:(e.target.closest('.sheet')||{}).scrollTop||0,drag:null}:null;
+},{passive:true});
+root.addEventListener('touchmove',e=>{
+  if(!touch||st.screen!=='app') return;
+  const p=e.touches[0];
+  const dx=p.clientX-touch.x;
+  const dy=p.clientY-touch.y;
+  if(!touch.drag){
+    if(touch.sheet&&touch.top===0&&dy>8&&dy>Math.abs(dx)) touch.drag='sheet';
+    else if(!touch.sheet&&!st.sheet&&!st.page&&Math.abs(dx)>8&&Math.abs(dx)>Math.abs(dy)) touch.drag='month';
+  }
+  if(touch.drag==='sheet'){
+    const sh=root.querySelector('.sheet:not(.closing)');
+    if(sh) sh.style.transform='translateY('+Math.max(0,dy)+'px)';
+  }else if(touch.drag==='month'){
+    const g=root.querySelector('.grid');
+    if(g){g.style.transform='translateX('+dx*0.5+'px)';g.style.opacity=String(1-Math.min(Math.abs(dx),200)/400);}
+  }
 },{passive:true});
 root.addEventListener('touchend',async e=>{
   if(!touch||st.screen!=='app') return;
@@ -554,11 +683,13 @@ root.addEventListener('touchend',async e=>{
   touch=null;
   let act=null;
   if(t0.sheet){
-    if(dy>90&&dy>Math.abs(dx)*1.5&&t0.top===0) act='close';
-  }else if(!st.sheet&&Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5){
+    if(dy>CLOSE_DRAG&&dy>Math.abs(dx)*1.5&&t0.top===0) act='close';
+    else if(t0.drag==='sheet') springBack(root.querySelector('.sheet:not(.closing)'));
+  }else if(!st.sheet&&Math.abs(dx)>SWIPE&&Math.abs(dx)>Math.abs(dy)*1.5){
     if(st.page) act=dx>0?'tab-cal':null;
     else act=dx>0?'prev':'next';
   }
+  if(t0.drag==='month'&&!act) springBack(root.querySelector('.grid'));
   if(!act) return;
   try{await handle(act,null);}catch(err){showError(err);}
 },{passive:true});

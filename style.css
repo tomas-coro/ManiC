@@ -249,3 +249,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--fb);-webkit-font-smo
 .hd-back{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;text-align:left}
 .hd-back .pg-t{text-align:center}
 .main{overscroll-behavior:contain}
+.sb{display:contents}
+.sb>*{flex:none}
+.sheet.closing{animation:none}
+@media (prefers-reduced-motion:reduce){.sheet{animation:none}}
