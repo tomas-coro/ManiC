@@ -409,6 +409,21 @@ function sync(parent,parts,first){
   have.forEach((el,key)=>{if(!keep.has(key)) el.remove();});
 }
 
+let toastTimer;
+function toast(msg){
+  const ph=root.querySelector('.phone');
+  if(!ph) return;
+  ph.querySelector('.toast')?.remove();
+  ph.insertAdjacentHTML('beforeend','<div class="toast" role="status">'+esc(msg)+'</div>');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{
+    const el=ph.querySelector('.toast');
+    if(!el) return;
+    el.classList.add('out');
+    setTimeout(()=>el.remove(),220);
+  },2200);
+}
+
 let shellPage;
 let shownMonth;
 const ORDER={cal:0,stats:1,settings:2};
@@ -684,12 +699,14 @@ async function handle(act,t){
     if(st.all) st.all.push(...saved);
     st.lastDate=await api.lastEventDate(todayIso);
     st.adding=false;st.busy=false;
+    toast(list.length===1?'Salvato':'Salvati: '+list.length);
   }
   else if(act==='del'){
     await api.removeEvent(t.dataset.id);
     st.events=st.events.filter(e=>e.id!==t.dataset.id);
     if(st.all) st.all=st.all.filter(e=>e.id!==t.dataset.id);
     st.lastDate=await api.lastEventDate(todayIso);
+    toast('Eliminato');
   }
   else if(act==='save-names'){
     const me=root.querySelector('[data-name="me"]').value.trim();
@@ -699,6 +716,7 @@ async function handle(act,t){
     if(o) await api.renameMember(o.user_id,other);
     st.members=await api.loadMembers();
     st.me=st.members.find(x=>x.user_id===st.session.user.id);
+    toast('Nomi salvati');
   }
   else if(act==='change-pin'){st.screen='setpin';st.pin='';st.pinFirst='';st.pinLen=pinLength(localStorage)||4;st.sheet=null;st.page=null;}
   else if(act==='lock-now'){st.screen='lock';st.pin='';st.sheet=null;st.page=null;}
