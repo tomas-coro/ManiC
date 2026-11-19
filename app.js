@@ -376,7 +376,7 @@ function calParts(){
     const cnt=countsOnDay(st.events,id);
     const dim=st.filter&&types.length&&!types.includes(st.filter);
     const cls=(types.length?' has':'')+(id===todayIso?' today':'')+(id>todayIso?' fut':'')+(dim?' dim':'');
-    h+='<button class="cell'+cls+'" data-act="day" data-iso="'+id+'" aria-label="'+d+' '+MESI[st.m]+(types.length?': '+types.map(t=>t+(cnt[t]>1?' x'+cnt[t]:'')).join(', '):'')+'"><span class="num">'+d+'</span><span class="ics">'+types.slice(0,5).map(t=>'<span class="icn">'+icon(t,'sm')+(cnt[t]>1?'<i>'+cnt[t]+'</i>':'')+'</span>').join('')+'</span></button>';
+    h+='<button class="cell'+cls+'" data-act="day" data-iso="'+id+'" aria-label="'+d+' '+MESI[st.m]+(types.length?': '+types.map(t=>t+(cnt[t]>1?' x'+cnt[t]:'')).join(', '):'')+'"><span class="num">'+d+'</span><span class="ics">'+(types.length>4?types.slice(0,3):types).map(t=>'<span class="icn">'+icon(t,'sm')+(cnt[t]>1?'<i>'+cnt[t]+'</i>':'')+'</span>').join('')+(types.length>4?'<span class="more">+'+(types.length-3)+'</span>':'')+'</span></button>';
   }
   if(sk) for(let d=1;d<=days;d++) h+='<span class="cell sk-cell"><span class="num">'+d+'</span><span class="sk sk-ic"></span></span>';
   h+='</div>';
@@ -484,6 +484,8 @@ function renderApp(){
     shownMonth=mKey;
   }
   sync(phone,[['tabs',tabs()]],main);
+  const tb=phone.querySelector(':scope > .tabs');
+  if(tb) phone.style.setProperty('--tabh',tb.offsetHeight+'px');
   root.querySelectorAll('.cell.sel').forEach(c=>c.classList.remove('sel'));
   const open=page==='cal'&&st.sheet==='day'&&st.sel;
   let sheet=phone.querySelector(':scope > .sheet:not(.closing)');
@@ -817,7 +819,7 @@ async function handle(act,t){
 }
 
 root.addEventListener('click',async e=>{
-  if(st.screen==='app'&&st.sheet&&!e.target.closest('.sheet')&&!e.target.closest('[data-act="close"]')&&!e.target.closest('.upd')){
+  if(st.screen==='app'&&st.sheet&&!e.target.closest('.sheet')&&!e.target.closest('[data-act="close"]')&&!e.target.closest('.upd')&&!e.target.closest('.tabs')){
     e.preventDefault();e.stopPropagation();
     st.sheet=null;st.adding=false;render();return;
   }
