@@ -50,7 +50,7 @@ export async function loadAllEvents(){
   const page=1000;
   const all=[];
   for(let from=0;;from+=page){
-    const {data,error}=await sb.from('events').select('id,event_date,type,who').order('event_date').order('id').range(from,from+page-1);
+    const {data,error}=await sb.from('events').select('id,couple_id,event_date,type,who,note').order('event_date').order('id').range(from,from+page-1);
     fail(error,'Impossibile caricare le statistiche');
     all.push(...data);
     if(data.length<page) return all;

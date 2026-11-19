@@ -1,4 +1,4 @@
-const FILES=['app.js','style.css','pin.js','logic.js','api.js','icons.js'];
+const FILES=['app.js','style.css','pin.js','logic.js','api.js','icons.js','cache.js'];
 
 export async function fetchSignature(fetcher=fetch){
   const parts=await Promise.all(FILES.map(async f=>{

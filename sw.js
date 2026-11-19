@@ -1,5 +1,7 @@
 const CACHE='manic-v1';
-const FILES=['./','index.html','style.css','app.js','api.js','logic.js','pin.js','update.js','icons.js','config.js','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png','assets/wordmark-completo.png','assets/wordmark-lettere.png'];
+const FILES=['./','index.html','style.css','app.js','api.js','logic.js','pin.js','update.js','icons.js','cache.js','config.js','manifest.webmanifest','icon.svg','icon-192.png','icon-512.png','apple-touch-icon.png','assets/wordmark-completo.png','assets/wordmark-lettere.png'];
+
+const EXTERNAL=['cdn.jsdelivr.net','fonts.googleapis.com','fonts.gstatic.com'];
 
 self.addEventListener('install',e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES)));
@@ -13,7 +15,7 @@ self.addEventListener('activate',e=>{
 
 self.addEventListener('fetch',e=>{
   const url=new URL(e.request.url);
-  if(e.request.method!=='GET'||url.origin!==location.origin) return;
+  if(e.request.method!=='GET'||(url.origin!==location.origin&&!EXTERNAL.includes(url.hostname))) return;
   e.respondWith(fetch(e.request).then(r=>{
     const copy=r.clone();
     caches.open(CACHE).then(c=>c.put(e.request,copy));

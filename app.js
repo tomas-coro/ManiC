@@ -2,6 +2,7 @@ import {TYPES,MESI,GIORNI,DOW,isoDate,monthGrid,monthRange,typesOnDay,countsOnDa
 import {SPRITE} from './icons.js';
 import * as api from './api.js';
 import {fetchSignature,shortVersion} from './update.js';
+import {saveCache,loadCache,clearCache} from './cache.js';
 import {validPin,hasPin,setPin,checkPin,pinLength} from './pin.js';
 
 const root=document.getElementById('root');
@@ -44,6 +45,9 @@ const st={
   gen:0,
   loading:false,
   loadErr:'',
+  offline:false,
+  fromCache:false,
+  syncAt:null,
   updReady:false,
   updMsg:'',
   version:''
@@ -166,7 +170,7 @@ function detail(){
   const n=names();
   let h='<div class="d-head"><div class="d-title">'+GIORNI[dt.getDay()]+' '+d+' '+MESI[m-1].toLowerCase()+'</div><button class="x" data-act="close" aria-label="Chiudi">×</button></div>';
   if(list.length){
-    h+='<ul class="evs">'+list.map(e=>'<li class="ev" style="--cc:var(--c-'+e.type+')"><span class="ev-ic">'+icon(e.type)+'</span><span><span class="ev-type">'+esc(e.type)+'</span><span class="ev-who">'+esc(whoLabel(e.who,st.me.slot,n))+'</span></span>'+(e.note?'<p class="ev-note">'+esc(e.note)+'</p>':'')+'<button class="ev-del" data-act="del" data-id="'+e.id+'">rimuovi</button></li>').join('')+'</ul>';
+    h+='<ul class="evs">'+list.map(e=>'<li class="ev" style="--cc:var(--c-'+e.type+')"><span class="ev-ic">'+icon(e.type)+'</span><span><span class="ev-type">'+esc(e.type)+'</span><span class="ev-who">'+esc(whoLabel(e.who,st.me.slot,n))+'</span></span>'+(e.note?'<p class="ev-note">'+esc(e.note)+'</p>':'')+'<button class="ev-del" data-act="del" data-id="'+e.id+'"'+(st.offline?' disabled':'')+'>rimuovi</button></li>').join('')+'</ul>';
   } else h+='<p class="empty">Niente in questo giorno.</p>';
   if(st.adding){
     const otherName=n[st.me.slot===1?2:1]||'L\'altro';
@@ -174,7 +178,7 @@ function detail(){
     h+='<div class="f-lab">Chi (o chi riceve)</div><div class="chips">'+[['me','Tu'],['other',esc(otherName)],['both','Insieme']].map(p=>'<button class="ch" data-act="who" data-v="'+p[0]+'" aria-pressed="'+(st.whoChoice===p[0])+'">'+p[1]+'</button>').join('')+'</div>';
     h+='<div class="f-lab">Nota (facoltativa)</div><input class="note" type="text" maxlength="80" placeholder="una riga, se vuoi" value="'+esc(st.note)+'" data-act="note">';
     h+='<button class="cta" data-act="save"'+(st.busy||!total()?' disabled':'')+'>Salva</button><button class="cta ghost" data-act="cancel">Annulla</button>';
-  } else h+='<button class="cta" data-act="add">+ Aggiungi</button>';
+  } else h+='<button class="cta" data-act="add"'+(st.offline?' disabled':'')+'>+ Aggiungi</button>';
   return h;
 }
 
@@ -320,7 +324,7 @@ const BACK=t=>'<div class="hd hd-back"><button class="gear" data-act="tab-cal" a
 const body=h=>h?'<div class="sb">'+h+'</div>':'';
 
 function statsParts(){
-  return [['hd',BACK('Statistiche')],['banner',banner()],['recap',recapHtml()],['body',body(statsBody())]];
+  return [['hd',BACK('Statistiche')],['banner',banner()],['offline',offlineBar()],['recap',recapHtml()],['body',body(statsBody())]];
 }
 
 function settingsParts(){
@@ -353,12 +357,12 @@ function retryBar(){
 }
 
 function calParts(){
-  const sk=st.loading||!!st.loadErr;
+  const sk=!st.fromCache&&(st.loading||!!st.loadErr);
   const stats=monthStats(sk?[]:st.events);
   const {offset,days}=monthGrid(st.y,st.m);
   const ago=agoLabel(daysSince(st.lastDate,todayIso));
   const away=st.y!==now.getFullYear()||st.m!==now.getMonth();
-  const P=[['hd','<div class="hd">'+wm()+(away?'<button class="today-btn" data-act="today">Oggi</button>':'')+'</div>'],['banner',banner()],['retry',retryBar()]];
+  const P=[['hd','<div class="hd">'+wm()+(away?'<button class="today-btn" data-act="today">Oggi</button>':'')+'</div>'],['banner',banner()],['offline',offlineBar()],['retry',retryBar()]];
   P.push(['mnav','<div class="mnav"><button data-act="prev" aria-label="Mese precedente">‹</button><h1>'+MESI[st.m]+' <i>'+st.y+'</i></h1><button data-act="next" aria-label="Mese successivo">›</button></div>']);
   P.push(['stats',(sk?skStats():'<div class="stats"><span><b>'+stats.total+'</b>atti nel mese</span><span class="sep"></span><span><b>'+stats.activeDays+'</b>giorni attivi</span><span class="sep"></span><span><b class="g">'+daysTogether(TOGETHER_SINCE,todayIso)+'</b>giorni insieme</span><span class="sep"></span><span><b class="t">'+ago+'</b>ultima volta</span></div>')]);
   P.push(['filters',(sk?skFilters():'<div class="filters" role="group" aria-label="Filtra per tipo"><button class="fl" data-act="filter" data-v="" aria-pressed="'+(st.filter===null)+'">Tutti <span class="n">'+stats.total+'</span></button>'
@@ -496,7 +500,15 @@ function renderApp(){
   }else if(sheet) closeSheet(sheet);
 }
 
+function hideSplash(){
+  const sp=document.getElementById('splash');
+  if(!sp||sp.classList.contains('out')) return;
+  sp.classList.add('out');
+  setTimeout(()=>sp.remove(),300);
+}
+
 function render(){
+  if(st.screen!=='boot') hideSplash();
   if(st.screen==='app'){
     renderApp();
   }else{
@@ -507,11 +519,50 @@ function render(){
   updateBar();
 }
 
+const isNetErr=e=>!navigator.onLine||/fetch|network|load failed/i.test(String(e&&e.message||e));
+
+function monthFromAll(){
+  const {from,to}=monthRange(st.y,st.m);
+  return st.all.filter(e=>e.event_date>=from&&e.event_date<to);
+}
+
+function lastFromAll(){
+  let best=null;
+  for(const e of st.all) if(e.event_date<=todayIso&&(!best||e.event_date>best)) best=e.event_date;
+  return best;
+}
+
+function persist(){
+  if(st.me&&st.all&&st.session) saveCache(localStorage,{uid:st.session.user.id,me:st.me,members:st.members,all:st.all,at:st.syncAt});
+}
+
+function goOffline(){
+  st.offline=true;st.loadErr='';
+  if(st.all){st.events=monthFromAll();st.lastDate=lastFromAll();}
+}
+
+function syncLabel(ts){
+  if(!ts) return 'ultimo accesso';
+  const d=new Date(ts);
+  const hm=d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+  return d.toDateString()===now.toDateString()?'oggi alle '+hm:d.getDate()+'/'+(d.getMonth()+1)+' alle '+hm;
+}
+
+function offlineBar(){
+  return st.offline?'<div class="offbar" role="status">Sei offline · dati di '+esc(syncLabel(st.syncAt))+'</div>':'';
+}
+
 async function loadAll(){
   const gen=++st.gen;
   st.loading=true;st.loadErr='';
+  if(!navigator.onLine&&st.all&&st.me){
+    goOffline();
+    st.loading=false;
+    if(st.screen==='app') render();
+    return;
+  }
   try{
-    if(!st.me){
+    if(!st.me||st.fromCache){
       const members=await api.loadMembers();
       const me=members.find(x=>x.user_id===st.session.user.id)||null;
       if(!me) throw new Error('Questo account non è collegato a nessuna coppia');
@@ -523,10 +574,12 @@ async function loadAll(){
     const lastDate=await api.lastEventDate(todayIso);
     if(gen!==st.gen) return;
     st.events=events;st.lastDate=lastDate;
+    st.offline=false;st.fromCache=false;st.syncAt=Date.now();
   }catch(e){
     console.warn('caricamento dati non riuscito',e);
     if(gen!==st.gen) return;
-    st.loadErr=e&&e.message?e.message:'Caricamento non riuscito';
+    if(st.all&&st.me&&isNetErr(e)) goOffline();
+    else st.loadErr=e&&e.message?e.message:'Caricamento non riuscito';
   }
   st.loading=false;
   if(st.screen==='app') render();
@@ -535,16 +588,20 @@ async function loadAll(){
 let allGen=0;
 
 async function loadStats(){
+  if(!navigator.onLine&&st.all){st.offline=true;return;}
   const g=++allGen;
   st.allLoading=true;st.allErr='';
   try{
     const all=await api.loadAllEvents();
     if(g!==allGen) return;
     st.all=all;
+    st.syncAt=Date.now();
+    persist();
   }catch(e){
     console.warn('statistiche non caricate',e);
     if(g!==allGen) return;
-    st.allErr=e&&e.message?e.message:'Statistiche non caricate';
+    if(st.all&&isNetErr(e)) st.offline=true;
+    else st.allErr=e&&e.message?e.message:'Statistiche non caricate';
   }
   st.allLoading=false;
   if(st.screen==='app') render();
@@ -556,15 +613,40 @@ async function enterApp(){
   st.pin='';
   st.pinFirst='';
   st.error='';
+  const c=loadCache(localStorage,st.session.user.id);
+  if(c){
+    Object.assign(st,{me:c.me,members:c.members,all:c.all,syncAt:c.at,fromCache:true});
+    st.events=monthFromAll();
+    st.lastDate=lastFromAll();
+  }
   render();
   loadAll();
   loadStats();
 }
 
 async function boot(){
+  let err=null;
   try{
     st.session=await api.getSession();
-    if(!st.session){st.screen='login';render();return;}
+  }catch(e){
+    err=e;
+  }
+  if(!st.session&&(!navigator.onLine||(err&&isNetErr(err)))){
+    const c=loadCache(localStorage);
+    if(c) st.session={user:{id:c.uid},offline:true};
+    else{
+      st.screen='login';
+      st.error='Sei offline: serve la rete per accedere';
+      render();
+      return;
+    }
+  }
+  if(!st.session){
+    st.screen='login';
+    if(err) showError(err); else render();
+    return;
+  }
+  try{
     await enterApp();
   }catch(e){
     st.screen='login';
@@ -610,10 +692,11 @@ async function submitPin(){
 async function signOutNow(){
   st.gen++;st.loading=false;st.loadErr='';
   await api.signOut();
+  clearCache(localStorage);
   localStorage.removeItem('manic-pin');
   localStorage.removeItem('manic-pin-len');
   allGen++;
-  Object.assign(st,{screen:'login',session:null,members:[],me:null,events:[],all:null,allErr:'',allLoading:false,page:null,openMonth:null,heatOpen:false,heatF:null,heatMo:null,recapOff:false,sheet:null,pin:'',pinFirst:'',pinBusy:false,forgot:false,error:''});
+  Object.assign(st,{screen:'login',session:null,offline:false,fromCache:false,syncAt:null,members:[],me:null,events:[],all:null,allErr:'',allLoading:false,page:null,openMonth:null,heatOpen:false,heatF:null,heatMo:null,recapOff:false,sheet:null,pin:'',pinFirst:'',pinBusy:false,forgot:false,error:''});
 }
 
 async function handle(act,t){
@@ -688,6 +771,10 @@ async function handle(act,t){
   else if(act==='inc'){if(st.counts[t.dataset.v]<20) st.counts[t.dataset.v]++;}
   else if(act==='dec'){if(st.counts[t.dataset.v]>0) st.counts[t.dataset.v]--;}
   else if(act==='who'){st.whoChoice=t.dataset.v;}
+  else if(st.offline&&(act==='save'||act==='del'||act==='save-names')){
+    showError(new Error('Sei offline: serve la rete per modificare'));
+    return;
+  }
   else if(act==='save'){
     const list=[];
     TYPES.forEach(ty=>{for(let i=0;i<st.counts[ty];i++) list.push(ty)});
@@ -697,6 +784,7 @@ async function handle(act,t){
     const saved=await Promise.all(list.map(ty=>api.addEvent({couple_id:st.me.couple_id,event_date:st.sel,type:ty,who,note:st.note.trim()})));
     st.events.push(...saved);
     if(st.all) st.all.push(...saved);
+    persist();
     st.lastDate=await api.lastEventDate(todayIso);
     st.adding=false;st.busy=false;
     toast(list.length===1?'Salvato':'Salvati: '+list.length);
@@ -705,6 +793,7 @@ async function handle(act,t){
     await api.removeEvent(t.dataset.id);
     st.events=st.events.filter(e=>e.id!==t.dataset.id);
     if(st.all) st.all=st.all.filter(e=>e.id!==t.dataset.id);
+    persist();
     st.lastDate=await api.lastEventDate(todayIso);
     toast('Eliminato');
   }
@@ -716,6 +805,7 @@ async function handle(act,t){
     if(o) await api.renameMember(o.user_id,other);
     st.members=await api.loadMembers();
     st.me=st.members.find(x=>x.user_id===st.session.user.id);
+    persist();
     toast('Nomi salvati');
   }
   else if(act==='change-pin'){st.screen='setpin';st.pin='';st.pinFirst='';st.pinLen=pinLength(localStorage)||4;st.sheet=null;st.page=null;}
@@ -804,6 +894,28 @@ root.addEventListener('submit',async e=>{
     st.busy=false;
     await enterApp();
   }catch(err){showError(err);}
+});
+
+window.addEventListener('online',async()=>{
+  if(!st.session) return;
+  if(st.session.offline){
+    const fresh=await api.getSession().catch(()=>null);
+    if(!fresh){
+      await signOutNow();
+      st.error='Sessione scaduta: accedi di nuovo';
+      render();
+      return;
+    }
+    st.session=fresh;
+  }
+  loadAll();
+  loadStats();
+});
+
+window.addEventListener('offline',()=>{
+  if(!st.all||!st.me) return;
+  goOffline();
+  if(st.screen==='app') render();
 });
 
 if('serviceWorker' in navigator){
