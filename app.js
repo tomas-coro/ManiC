@@ -1,4 +1,4 @@
-import {TYPES,MESI,GIORNI,DOW,isoDate,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice,TOGETHER_SINCE,balance,monthKey,monthsStats,prevMonthKey,prevOf,daysTogether,togetherLabel} from './logic.js';
+import {TYPES,MESI,GIORNI,DOW,isoDate,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice,TOGETHER_SINCE,balance,monthKey,monthsStats,prevMonthKey,prevOf,daysTogether,togetherLabel,heatMap} from './logic.js';
 import {FLAT} from './icons.js';
 import * as api from './api.js';
 import {fetchSignature,shortVersion} from './update.js';
@@ -22,6 +22,7 @@ const st={
   allLoading:false,
   page:null,
   openMonth:null,
+  heatOpen:false,
   recapOff:false,
   lastDate:null,
   y:now.getFullYear(),
@@ -227,11 +228,29 @@ function togetherHtml(){
   return '<div class="tg"><b>'+daysTogether(TOGETHER_SINCE,todayIso)+'</b><span><i>giorni insieme</i>dal '+d+' '+MESI[m-1].toLowerCase()+' '+y+' · '+togetherLabel(TOGETHER_SINCE,todayIso)+'</span></div>';
 }
 
+const MESI_BREVI=['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+const HEAT_WEEKS=26;
+
+function heatHtml(){
+  const h=heatMap(st.all,TOGETHER_SINCE,todayIso,HEAT_WEEKS);
+  const lv=n=>n>=3?' l3':n===2?' l2':n===1?' l1':'';
+  const open=st.heatOpen;
+  const head='<div class="hmx'+(open?' open':'')+'"><button class="mh" data-act="hm" aria-expanded="'+open+'"><span class="mn">Mappa dei giorni<small>ultime '+h.cols+' settimane</small></span><span class="chv">&rsaquo;</span></button>';
+  if(!open) return head+'</div>';
+  const act=h.cells.filter(n=>n).length;
+  const days=h.cells.filter(n=>n!==null).length;
+  return head+'<div class="hmap" role="img" aria-label="Mappa dei giorni con atti, ultime '+h.cols+' settimane">'
+    +'<div class="yl" style="grid-template-columns:repeat('+h.cols+',1fr)">'+h.labels.filter((l,i)=>!h.labels[i+1]||h.labels[i+1].col-l.col>=3).map(l=>'<span style="grid-column:'+(l.col+1)+'">'+MESI_BREVI[l.m]+'</span>').join('')+'</div>'
+    +'<div class="yr" style="grid-template-columns:repeat('+h.cols+',1fr)">'+h.cells.map(n=>'<i class="'+(n===null?'n':lv(n).trim())+'"></i>').join('')+'</div>'
+    +'<div class="scale"><span>meno</span><i></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><span>più</span></div><div class="hmsum"><span><b>'+act+'</b>giorni con atti</span><span><b>'+Math.round(act/Math.max(days,1)*100)+'%</b>dei giorni</span></div></div></div>';
+}
+
 function statsBody(){
   if(st.allErr) return '<div class="banner" role="alert">'+esc(st.allErr)+'<button class="link" data-act="retry-stats">Riprova</button></div>';
   if(!st.all) return '<div class="tg" aria-hidden="true"><i class="sk sk-big"></i></div><i class="sk sk-line"></i><i class="sk sk-line"></i><i class="sk sk-line"></i><i class="sk sk-line"></i><i class="sk sk-line"></i>';
   let h=togetherHtml();
   if(!st.all.length) return h+'<p class="empty">Ancora niente da contare: segna il primo giorno dal calendario.</p>';
+  h+=heatHtml();
   const tot=monthStats(st.all);
   const list=monthsStats(st.all);
   h+='<div class="lab">Da sempre</div><div class="row"><span class="nm tot">Atti in totale</span><span class="n">'+tot.total+'</span></div>'+rowsHtml(tot.counts,null)+balHtml(tot.counts);
@@ -292,7 +311,8 @@ function calParts(){
   const stats=monthStats(sk?[]:st.events);
   const {offset,days}=monthGrid(st.y,st.m);
   const ago=agoLabel(daysSince(st.lastDate,todayIso));
-  const P=[['hd','<div class="hd">'+wm()+'</div>'],['banner',banner()],['retry',retryBar()]];
+  const away=st.y!==now.getFullYear()||st.m!==now.getMonth();
+  const P=[['hd','<div class="hd">'+wm()+(away?'<button class="today-btn" data-act="today">Oggi</button>':'')+'</div>'],['banner',banner()],['retry',retryBar()]];
   P.push(['mnav','<div class="mnav"><button data-act="prev" aria-label="Mese precedente">‹</button><h1>'+MESI[st.m]+' <i>'+st.y+'</i></h1><button data-act="next" aria-label="Mese successivo">›</button></div>']);
   P.push(['stats',(sk?skStats():'<div class="stats"><span><b>'+stats.total+'</b>atti nel mese</span><span class="sep"></span><span><b>'+stats.activeDays+'</b>giorni attivi</span><span class="sep"></span><span><b class="g">'+daysTogether(TOGETHER_SINCE,todayIso)+'</b>giorni insieme</span><span class="sep"></span><span><b class="t">'+ago+'</b>ultima volta</span></div>')]);
   P.push(['filters',(sk?skFilters():'<div class="filters" role="group" aria-label="Filtra per tipo"><button class="fl" data-act="filter" data-v="" aria-pressed="'+(st.filter===null)+'">Tutti <span class="n">'+stats.total+'</span></button>'
@@ -570,6 +590,14 @@ async function handle(act,t){
     st.y=dt.getFullYear();st.m=dt.getMonth();st.error='';st.dir=act==='prev'?-1:1;
     loadAll();
   }
+  else if(act==='today'){
+    const cur=st.y*12+st.m;
+    const tgt=now.getFullYear()*12+now.getMonth();
+    if(cur===tgt) return;
+    st.dir=tgt<cur?-1:1;
+    st.y=now.getFullYear();st.m=now.getMonth();st.error='';
+    loadAll();
+  }
   else if(act==='retry'){loadAll();}
   else if(act==='stats'){
     if(!st.me) return;
@@ -590,6 +618,7 @@ async function handle(act,t){
     st.recapOff=true;
     try{localStorage.setItem(RECAP_KEY,monthKey(todayIso));}catch(err){console.warn('riepilogo non memorizzato',err);}
   }
+  else if(act==='hm'){st.heatOpen=!st.heatOpen;}
   else if(act==='filter'){st.filter=t.dataset.v||null;}
   else if(act==='add'){st.adding=true;TYPES.forEach(t=>{st.counts[t]=0});st.note='';st.error='';}
   else if(act==='cancel'){st.adding=false;}

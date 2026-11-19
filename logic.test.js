@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {TYPES,pad,isoDate,flowOf,balance,monthKey,monthsStats,prevMonthKey,deltas,prevOf,daysTogether,togetherLabel,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice} from './logic.js';
+import {TYPES,pad,isoDate,flowOf,balance,monthKey,monthsStats,prevMonthKey,deltas,prevOf,daysTogether,togetherLabel,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice,heatMap} from './logic.js';
 
 test('pad aggiunge lo zero',()=>{
   assert.equal(pad(3),'03');
@@ -180,4 +180,19 @@ test('prevOf dà il mese prima, uno vuoto se c\'è un buco, niente per il primo 
   assert.equal(prevOf(list,2),null);
   const full=monthsStats(ev);
   assert.equal(prevOf(full,0).key,'2026-10');
+});
+
+test('heatMap: una settimana, giorni futuri vuoti',()=>{
+  const h=heatMap([{event_date:'2026-11-17'},{event_date:'2026-11-17'},{event_date:'2026-11-19'}],'2026-11-16','2026-11-19',26);
+  assert.equal(h.cols,1);
+  assert.deepEqual(h.cells,[0,2,0,1,null,null,null]);
+  assert.deepEqual(h.labels,[{col:0,m:10}]);
+});
+
+test('heatMap: non supera maxWeeks e ignora i giorni prima dell inizio',()=>{
+  const h=heatMap([],'2026-04-22','2026-11-19',26);
+  assert.equal(h.cols,26);
+  assert.equal(h.cells.length,26*7);
+  const h2=heatMap([],'2026-11-18','2026-11-19',26);
+  assert.deepEqual(h2.cells,[null,null,0,0,null,null,null]);
 });

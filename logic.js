@@ -150,3 +150,29 @@ export function prevOf(list,i){
   if(next&&next.key===prevMonthKey(cur.y,cur.m)) return next;
   return next?monthStats([]):null;
 }
+
+export function heatMap(events,startIso,todayIso,maxWeeks){
+  const DAY=864e5;
+  const day=iso=>{const [y,m,d]=iso.split('-').map(Number);return Date.UTC(y,m-1,d);};
+  const monday=t=>t-((new Date(t).getUTCDay()+6)%7)*DAY;
+  const counts={};
+  events.forEach(e=>{counts[e.event_date]=(counts[e.event_date]||0)+1;});
+  const first=day(startIso);
+  const end=day(todayIso);
+  const endWeek=monday(end);
+  const startWeek=Math.max(monday(first),endWeek-(maxWeeks-1)*7*DAY);
+  const cols=Math.round((endWeek-startWeek)/(7*DAY))+1;
+  const cells=[];
+  const labels=[];
+  let lastM=-1;
+  for(let w=0;w<cols;w++){
+    const ws=startWeek+w*7*DAY;
+    const m=new Date(ws+3*DAY).getUTCMonth();
+    if(m!==lastM){labels.push({col:w,m});lastM=m;}
+    for(let i=0;i<7;i++){
+      const t=ws+i*DAY;
+      cells.push(t<first||t>end?null:(counts[new Date(t).toISOString().slice(0,10)]||0));
+    }
+  }
+  return {cols,cells,labels};
+}
