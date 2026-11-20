@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {TYPES,pad,isoDate,flowOf,balance,monthKey,monthsStats,prevMonthKey,deltas,prevOf,daysTogether,togetherLabel,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice,heatMap,weekdayCounts,records} from './logic.js';
+import {TYPES,pad,isoDate,flowOf,balance,monthKey,monthsStats,prevMonthKey,deltas,prevOf,daysTogether,togetherLabel,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice,MOMENTS,fasciaOf,whoOf,heatMap,weekdayCounts,records} from './logic.js';
 
 test('pad aggiunge lo zero',()=>{
   assert.equal(pad(3),'03');
@@ -223,4 +223,17 @@ test('records senza eventi',()=>{
   assert.equal(r.favWeekday,null);
   assert.equal(r.longestStreak,0);
   assert.equal(r.bestDay.n,0);
+});
+
+test('fasciaOf rispetta i confini 6-12, 12-18, 18-23, 23-6',()=>{
+  const at=h=>fasciaOf(h);
+  assert.deepEqual([5,6,11,12,17,18,22,23,0].map(at),['not','mat','mat','pom','pom','ser','ser','not','not']);
+});
+
+test('MOMENTS ha le 4 fasce in ordine',()=>{
+  assert.deepEqual(MOMENTS.map(m=>m.k),['mat','pom','ser','not']);
+});
+
+test('whoOf: pompino a p1, leccata e ditalini a p2, sesso e anale both',()=>{
+  assert.deepEqual(TYPES.map(whoOf),['both','p1','p2','both','p2']);
 });

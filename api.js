@@ -41,7 +41,7 @@ export async function loadMembers(){
 }
 
 export async function loadEvents(from,to){
-  const {data,error}=await sb.from('events').select('id,couple_id,event_date,type,who,note').gte('event_date',from).lt('event_date',to).order('created_at');
+  const {data,error}=await sb.from('events').select('id,couple_id,event_date,type,who,note,moment').gte('event_date',from).lt('event_date',to).order('created_at');
   fail(error,'Impossibile caricare gli eventi');
   return data;
 }
@@ -50,7 +50,7 @@ export async function loadAllEvents(){
   const page=1000;
   const all=[];
   for(let from=0;;from+=page){
-    const {data,error}=await sb.from('events').select('id,couple_id,event_date,type,who,note').order('event_date').order('id').range(from,from+page-1);
+    const {data,error}=await sb.from('events').select('id,couple_id,event_date,type,who,note,moment').order('event_date').order('id').range(from,from+page-1);
     fail(error,'Impossibile caricare le statistiche');
     all.push(...data);
     if(data.length<page) return all;
@@ -63,10 +63,16 @@ export async function lastEventDate(todayIso){
   return data.length?data[0].event_date:null;
 }
 
-export async function addEvent(ev){
-  const {data,error}=await sb.from('events').insert(ev).select('id,couple_id,event_date,type,who,note').single();
+export async function addEvents(rows){
+  const {data,error}=await sb.from('events').insert(rows).select('id,couple_id,event_date,type,who,note,moment');
   fail(error,'Salvataggio non riuscito');
   return data;
+}
+
+export async function setMoment(id,moment){
+  const {data,error}=await sb.from('events').update({moment}).eq('id',id).select('id');
+  fail(error,'Fascia non salvata');
+  if(!data.length) throw new Error('Fascia non salvata: evento non trovato');
 }
 
 export async function removeEvent(id){

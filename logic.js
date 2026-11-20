@@ -78,6 +78,26 @@ export function flowOf(type,mySlot){
   return f==='dato'?'ricevuto':'dato';
 }
 
+export const MOMENTS=[
+  {k:'mat',label:'Mattina',range:'6-12'},
+  {k:'pom',label:'Pomeriggio',range:'12-18'},
+  {k:'ser',label:'Sera',range:'18-23'},
+  {k:'not',label:'Notte',range:'23-6'}
+];
+
+export function fasciaOf(hour){
+  if(hour>=6&&hour<12) return 'mat';
+  if(hour>=12&&hour<18) return 'pom';
+  if(hour>=18&&hour<23) return 'ser';
+  return 'not';
+}
+
+export function whoOf(type){
+  const f=FLOW_SLOT1[type];
+  if(f==='insieme') return 'both';
+  return f==='ricevuto'?'p1':'p2';
+}
+
 export function balance(counts,mySlot){
   const b={dati:0,ricevuti:0,insieme:0};
   TYPES.forEach(t=>{
