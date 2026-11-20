@@ -530,13 +530,41 @@ function allView(list){
   return h;
 }
 
+const skb=(h,w)=>'<i class="sk" style="height:'+h+'px'+(w?';width:'+w+'px':'')+'"></i>';
+const skCard=(lab,inner)=>'<div class="s-card" aria-hidden="true">'+(lab?'<div class="lab">'+skb(10,70)+'</div>':'')+inner+'</div>';
+const skSplit=()=>'<div class="s-split"><i class="sk sk-donut"></i><div class="s-lgs">'+[0,1,2,3,4].map(()=>skb(16)).join('')+'</div></div>';
+
+function statsSkeleton(v){
+  if(v==='mese'){
+    return '<div class="s-mn" aria-hidden="true"><span></span>'+skb(44,130)+'<span></span></div>'
+      +skCard(false,'<div class="s-kp">'+[0,1,2].map(()=>'<div>'+skb(32,46)+skb(10,64)+'</div>').join('')+'</div>')
+      +skCard(true,skb(150))
+      +skCard(true,skSplit())
+      +skCard(true,skb(220))
+      +skCard(true,skb(70))
+      +skCard(true,skb(120));
+  }
+  return skCard(false,skb(38,150)+skb(12,200))
+    +skCard(true,skb(130))
+    +skCard(true,skb(178)+skb(44))
+    +skCard(true,skSplit())
+    +skCard(true,skb(60))
+    +skCard(true,skb(90));
+}
+
+function statsSeg(v){
+  return '<div class="s-seg" role="group" aria-label="Periodo"><button data-act="sv" data-v="mese" aria-pressed="'+(v==='mese')+'">Questo mese</button><button data-act="sv" data-v="sempre" aria-pressed="'+(v==='sempre')+'">Da sempre</button></div>';
+}
+
 function statsBody(){
-  if(st.allErr) return '<div class="banner" role="alert">'+esc(st.allErr)+'<button class="link" data-act="retry-stats">Riprova</button></div>';
-  if(!st.all) return '<div class="tg" aria-hidden="true"><i class="sk sk-big"></i></div><i class="sk sk-line"></i><i class="sk sk-line"></i><i class="sk sk-line"></i><i class="sk sk-line"></i><i class="sk sk-line"></i>';
+  const v=st.statsView;
+  if(!st.all){
+    const err=st.allErr?'<div class="banner" role="alert">'+esc(st.allErr)+'<button class="link" data-act="retry-stats">Riprova</button></div>':'';
+    return err+statsSeg(v)+statsSkeleton(v);
+  }
   if(!st.all.length) return togetherHtml()+'<p class="empty">Ancora niente da contare: segna il primo giorno dal calendario.</p>';
   const list=monthsStats(st.all);
-  const v=st.statsView;
-  return '<div class="s-seg" role="group" aria-label="Periodo"><button data-act="sv" data-v="mese" aria-pressed="'+(v==='mese')+'">Questo mese</button><button data-act="sv" data-v="sempre" aria-pressed="'+(v==='sempre')+'">Da sempre</button></div>'+(v==='mese'?monthView(list):allView(list));
+  return statsSeg(v)+(v==='mese'?monthView(list):allView(list));
 }
 
 function recapPending(){
@@ -713,7 +741,7 @@ function renderApp(){
     shellPage=page;
   }
   phone.classList.toggle('locked',!!st.sheet&&page!=='settings');
-  phone.classList.toggle('still',page==='cal'&&!!st.loadErr);
+  phone.classList.toggle('still',(page==='cal'&&!!st.loadErr)||(page==='stats'&&!st.all&&!!st.allErr));
   sync(main,page==='stats'?statsParts():page==='settings'?settingsParts():calParts());
   if(changed) fadeIn(main);
   const mKey=st.y+'-'+st.m;
