@@ -49,3 +49,36 @@ export async function checkPin(pin,storage){
   for(let i=0;i<hash.length;i++) diff|=hash[i]^expected[i];
   return diff===0;
 }
+
+const FAILS_KEY='manic-pin-fails';
+const UNTIL_KEY='manic-pin-until';
+export const MAX_FAILS=3;
+export const LOCK_MS=5*60*1000;
+
+export function lockLeft(storage,now){
+  const until=Number(storage.getItem(UNTIL_KEY));
+  if(!until) return 0;
+  return Math.max(0,Math.min(until-now,LOCK_MS));
+}
+
+export function failsLeft(storage){
+  const n=Number(storage.getItem(FAILS_KEY))||0;
+  return Math.max(0,MAX_FAILS-n);
+}
+
+export function recordFail(storage,now){
+  if(lockLeft(storage,now)>0) return lockLeft(storage,now);
+  const n=(Number(storage.getItem(FAILS_KEY))||0)+1;
+  if(n>=MAX_FAILS){
+    storage.setItem(FAILS_KEY,'0');
+    storage.setItem(UNTIL_KEY,String(now+LOCK_MS));
+    return LOCK_MS;
+  }
+  storage.setItem(FAILS_KEY,String(n));
+  return 0;
+}
+
+export function clearFails(storage){
+  storage.removeItem(FAILS_KEY);
+  storage.removeItem(UNTIL_KEY);
+}

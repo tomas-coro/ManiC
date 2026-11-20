@@ -3,7 +3,7 @@ import {SPRITE} from './icons.js';
 import * as api from './api.js';
 import {fetchSignature,shortVersion} from './update.js';
 import {saveCache,loadCache,clearCache} from './cache.js';
-import {validPin,hasPin,setPin,checkPin,pinLength} from './pin.js';
+import {validPin,hasPin,setPin,checkPin,pinLength,lockLeft,failsLeft,recordFail,clearFails} from './pin.js';
 
 const root=document.getElementById('root');
 let now=new Date();
@@ -17,7 +17,6 @@ function tick(){
 const st={
   screen:'boot',
   error:'',
-  dir:0,
   busy:false,
   session:null,
   members:[],
@@ -138,11 +137,40 @@ function pinView(){
   keys+='<button data-act="pin-digit" data-v="0">0</button><button class="ghost" data-act="pin-back" aria-label="Cancella">&#9003;</button>';
   const seg=setup?'<div class="plen" id="plen" role="group" aria-label="Lunghezza del PIN"'+(st.pin||st.pinFirst?' hidden':'')+'>'
     +[4,6].map(n=>'<button data-act="pin-len" data-v="'+n+'" aria-pressed="'+(st.pinLen===n)+'">'+n+' cifre</button>').join('')+'</div>':'';
-  return '<section class="pinscr">'+wm()
+  const left=setup?0:lockLeft(localStorage,Date.now());
+  const lock=setup?'':'<div class="plock" role="status"><span>Troppi tentativi</span><b id="pleft">'+pinLeftText(left||300000)+'</b><span id="pnote">'+esc(st.error||'Riprova tra qualche minuto')+'</span></div>';
+  return '<section class="pinscr'+(left>0?' blk':'')+'">'+wm()+'<div class="prule"></div>'
     +'<p class="plab'+(st.error?' err':'')+'" id="plab" role="status">'+esc(pinLabel())+'</p>'
-    +'<div class="pdots" id="pdots" aria-hidden="true">'+dotsHtml(dotCount())+'</div>'+seg
+    +'<div class="pdots" id="pdots" aria-hidden="true">'+dotsHtml(dotCount())+'</div>'+seg+lock
     +'<div class="ppad">'+keys+'</div>'
     +'<div class="pfoot">'+(setup?'':'<button class="link" data-act="forgot">PIN dimenticato?</button>')+'</div></section>';
+}
+
+const pinLeftText=ms=>{const s=Math.ceil(ms/1000);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');};
+let pinTimer;
+
+function pinWatch(){
+  clearInterval(pinTimer);
+  const tick=()=>{
+    const sec=document.querySelector('.pinscr');
+    if(!sec||st.screen!=='lock'){clearInterval(pinTimer);return;}
+    const left=lockLeft(localStorage,Date.now());
+    if(left>0){
+      sec.classList.add('blk');
+      const t=document.getElementById('pleft');
+      if(t) t.textContent=pinLeftText(left);
+      return;
+    }
+    clearInterval(pinTimer);
+    if(sec.classList.contains('blk')){
+      sec.classList.remove('blk');
+      Object.assign(st,{pin:'',error:'',pinBusy:false,forgot:false});
+      pinSay(pinLabel(),false);
+      pinPaint();
+    }
+  };
+  tick();
+  if(lockLeft(localStorage,Date.now())>0) pinTimer=setInterval(tick,1000);
 }
 
 function viewSetPin(){return pinView();}
@@ -642,7 +670,6 @@ function hideToast(){
 
 let shellPage;
 let shownMonth;
-const ORDER={cal:0,stats:1,settings:2};
 const EASE='cubic-bezier(.22,.8,.3,1)';
 const reduceMotion=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -651,9 +678,7 @@ function anim(el,frames,ms,fill){
   return el.animate(frames,{duration:ms||250,easing:EASE,fill:fill||'backwards'}).finished.catch(()=>{});
 }
 
-function slideIn(el,dir,px){
-  return anim(el,[{transform:'translateX('+dir*px+'px)',opacity:0},{transform:'none',opacity:1}]);
-}
+const fadeIn=el=>anim(el,[{opacity:0},{opacity:1}],150);
 
 function closeSheet(sheet){
   sheet.classList.add('closing');
@@ -676,7 +701,7 @@ function renderApp(){
   const phone=appShell();
   const main=phone.firstElementChild;
   const page=st.page==='stats'&&st.me?'stats':st.page==='settings'&&st.me?'settings':'cal';
-  const pageDir=shellPage===undefined||page===shellPage?0:Math.sign(ORDER[page]-ORDER[shellPage]);
+  const changed=shellPage!==undefined&&page!==shellPage;
   if(page!==shellPage){
     main.replaceChildren();
     main.className=page==='cal'?'main':'main sx';
@@ -686,12 +711,12 @@ function renderApp(){
   phone.classList.toggle('locked',!!st.sheet&&page!=='settings');
   phone.classList.toggle('still',page==='cal'&&!!st.loadErr);
   sync(main,page==='stats'?statsParts():page==='settings'?settingsParts():calParts());
-  if(pageDir) slideIn(main,pageDir,28);
+  if(changed) fadeIn(main);
   const mKey=st.y+'-'+st.m;
   if(page==='cal'){
-    if(shownMonth!==undefined&&shownMonth!==mKey&&st.dir){
-      slideIn(main.querySelector('.mnav h1'),st.dir,40);
-      slideIn(main.querySelector('.grid'),st.dir,40);
+    if(shownMonth!==undefined&&shownMonth!==mKey){
+      fadeIn(main.querySelector('.mnav h1'));
+      fadeIn(main.querySelector('.grid'));
     }
     shownMonth=mKey;
   }
@@ -748,6 +773,7 @@ function render(){
     const views={boot:'<p class="boot">Caricamento</p>',login:viewLogin,setpin:viewSetPin,lock:viewLock};
     const v=views[st.screen];
     root.innerHTML=typeof v==='function'?v():v;
+    if(st.screen==='lock') pinWatch();
   }
   updateBar();
 }
@@ -892,14 +918,27 @@ async function submitPin(){
   const d=document.getElementById('pdots');
   try{
     if(st.screen==='lock'){
+      if(lockLeft(localStorage,Date.now())>0){
+        Object.assign(st,{pin:'',pinBusy:false});
+        pinPaint();
+        pinWatch();
+        return;
+      }
       if(await checkPin(st.pin,localStorage)){
+        clearFails(localStorage);
         if(d) d.classList.add('ok');
         await wait(260);
         Object.assign(st,{screen:'app',error:'',pin:'',pinBusy:false});
         render();
         return;
       }
-      pinFail('PIN sbagliato');
+      if(recordFail(localStorage,Date.now())>0){
+        pinFail('Troppi tentativi');
+        setTimeout(()=>{st.error='';pinWatch();},470);
+        return;
+      }
+      const n=failsLeft(localStorage);
+      pinFail('PIN sbagliato, ancora '+n+(n===1?' tentativo':' tentativi'));
       return;
     }
     if(!st.pinFirst){
@@ -928,6 +967,7 @@ async function signOutNow(){
   clearCache(localStorage);
   localStorage.removeItem('manic-pin');
   localStorage.removeItem('manic-pin-len');
+  clearFails(localStorage);
   allGen++;
   Object.assign(st,{screen:'login',session:null,offline:false,fromCache:false,syncAt:null,members:[],me:null,events:[],all:null,allErr:'',allLoading:false,page:null,editName:null,statsView:'mese',statsMo:null,statsDay:null,heatF:null,heatMo:null,recapOff:false,sheet:null,pin:'',pinFirst:'',pinBusy:false,forgot:false,error:''});
 }
@@ -955,7 +995,7 @@ const OFFLINE_MSG='Sei offline: serve la rete per modificare';
 
 async function handle(act,t){
   if(act==='pin-digit'){
-    if(st.pinBusy) return;
+    if(st.pinBusy||lockLeft(localStorage,Date.now())>0) return;
     const max=pinLen()||6;
     if(st.pin.length<max){
       st.pin+=t.dataset.v;st.error='';st.forgot=false;
@@ -985,14 +1025,13 @@ async function handle(act,t){
   else if(act==='settings'){st.page='settings';st.sheet=null;st.error='';st.editName=null;}
   else if(act==='prev'||act==='next'){
     const dt=new Date(st.y,st.m+(act==='prev'?-1:1),1);
-    st.y=dt.getFullYear();st.m=dt.getMonth();st.error='';st.dir=act==='prev'?-1:1;
+    st.y=dt.getFullYear();st.m=dt.getMonth();st.error='';
     loadAll();
   }
   else if(act==='today'){
     const cur=st.y*12+st.m;
     const tgt=now.getFullYear()*12+now.getMonth();
     if(cur===tgt) return;
-    st.dir=tgt<cur?-1:1;
     st.y=now.getFullYear();st.m=now.getMonth();st.error='';
     loadAll();
   }
@@ -1006,7 +1045,6 @@ async function handle(act,t){
       st.page=null;st.sel=todayIso;
       startAdd(todayIso,null);
       if(cur!==tgt){
-        st.dir=tgt<cur?-1:1;
         st.y=now.getFullYear();st.m=now.getMonth();
         loadAll();
       }
@@ -1075,7 +1113,6 @@ async function handle(act,t){
     if(date>=from&&date<to) st.events.push(...saved);
     else{
       const [yy,mm]=date.split('-').map(Number);
-      st.dir=date<from?-1:1;
       st.y=yy;st.m=mm-1;
       loadAll();
     }
@@ -1150,7 +1187,6 @@ root.addEventListener('click',async e=>{
 },true);
 
 let touch=null;
-const SWIPE=60;
 const CLOSE_DRAG=90;
 
 function springBack(el){
@@ -1163,23 +1199,17 @@ function springBack(el){
 
 root.addEventListener('touchstart',e=>{
   const p=e.touches[0];
-  touch=e.touches.length===1&&!e.target.closest('.filters,input,.pad,.gm-s,.hfl,.hms,.s-cols')?{x:p.clientX,y:p.clientY,sheet:!!e.target.closest('.sheet'),top:(e.target.closest('.sh-bd')||{}).scrollTop||0,drag:null}:null;
+  touch=e.touches.length===1&&e.target.closest('.sheet')&&!e.target.closest('input,.gm-s,.hfl,.hms,.s-cols')?{x:p.clientX,y:p.clientY,top:(e.target.closest('.sh-bd')||{}).scrollTop||0,drag:null}:null;
 },{passive:true});
 root.addEventListener('touchmove',e=>{
   if(!touch||st.screen!=='app') return;
   const p=e.touches[0];
   const dx=p.clientX-touch.x;
   const dy=p.clientY-touch.y;
-  if(!touch.drag){
-    if(touch.sheet&&touch.top===0&&dy>8&&dy>Math.abs(dx)) touch.drag='sheet';
-    else if(!touch.sheet&&!st.sheet&&!st.page&&Math.abs(dx)>8&&Math.abs(dx)>Math.abs(dy)) touch.drag='month';
-  }
+  if(!touch.drag&&touch.top===0&&dy>8&&dy>Math.abs(dx)) touch.drag='sheet';
   if(touch.drag==='sheet'){
     const sh=root.querySelector('.sheet:not(.closing)');
     if(sh) sh.style.transform='translateY('+Math.max(0,dy)+'px)';
-  }else if(touch.drag==='month'){
-    const g=root.querySelector('.grid');
-    if(g){g.style.transform='translateX('+dx*0.5+'px)';g.style.opacity=String(1-Math.min(Math.abs(dx),200)/400);}
   }
 },{passive:true});
 root.addEventListener('touchend',async e=>{
@@ -1189,17 +1219,9 @@ root.addEventListener('touchend',async e=>{
   const dy=p.clientY-touch.y;
   const t0=touch;
   touch=null;
-  let act=null;
-  if(t0.sheet){
-    if(dy>CLOSE_DRAG&&dy>Math.abs(dx)*1.5&&t0.top===0) act=st.sheet==='add'?'cancel':'close';
-    else if(t0.drag==='sheet') springBack(root.querySelector('.sheet:not(.closing)'));
-  }else if(!st.sheet&&Math.abs(dx)>SWIPE&&Math.abs(dx)>Math.abs(dy)*1.5){
-    if(st.page) act=dx>0?'tab-cal':null;
-    else act=dx>0?'prev':'next';
-  }
-  if(t0.drag==='month'&&!act) springBack(root.querySelector('.grid'));
-  if(!act) return;
-  try{await handle(act,null);}catch(err){showError(err);}
+  if(dy>CLOSE_DRAG&&dy>Math.abs(dx)*1.5&&t0.top===0){
+    try{await handle(st.sheet==='add'?'cancel':'close',null);}catch(err){showError(err);}
+  }else if(t0.drag==='sheet') springBack(root.querySelector('.sheet:not(.closing)'));
 },{passive:true});
 
 root.addEventListener('input',e=>{

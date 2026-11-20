@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validPin,hasPin,setPin,checkPin,pinLength} from './pin.js';
+import {validPin,hasPin,setPin,checkPin,pinLength,lockLeft,failsLeft,recordFail,clearFails,MAX_FAILS,LOCK_MS} from './pin.js';
 
 function fakeStorage(){
   const m=new Map();
-  return {getItem:k=>m.has(k)?m.get(k):null,setItem:(k,v)=>{m.set(k,String(v))}};
+  return {getItem:k=>m.has(k)?m.get(k):null,setItem:(k,v)=>{m.set(k,String(v))},removeItem:k=>{m.delete(k)}};
 }
 
 
@@ -65,4 +65,44 @@ test('pinLength salva la lunghezza alla creazione, null per i PIN vecchi',async(
   const old=fakeStorage();
   old.setItem('manic-pin','x:y');
   assert.equal(pinLength(old),null);
+});
+
+test('dopo 3 errori scatta il blocco di 5 minuti',()=>{
+  const st=fakeStorage();
+  assert.equal(failsLeft(st),MAX_FAILS);
+  assert.equal(recordFail(st,1000),0);
+  assert.equal(failsLeft(st),2);
+  assert.equal(recordFail(st,2000),0);
+  assert.equal(lockLeft(st,2000),0);
+  assert.equal(recordFail(st,3000),LOCK_MS);
+  assert.equal(lockLeft(st,3000),LOCK_MS);
+});
+
+test('il blocco passa col tempo e poi si hanno di nuovo 3 tentativi',()=>{
+  const st=fakeStorage();
+  [1000,2000,3000].forEach(t=>recordFail(st,t));
+  assert.equal(lockLeft(st,3000+LOCK_MS-1),1);
+  assert.equal(lockLeft(st,3000+LOCK_MS),0);
+  assert.equal(failsLeft(st),MAX_FAILS);
+});
+
+test('durante il blocco un altro errore non allunga l\'attesa',()=>{
+  const st=fakeStorage();
+  [1000,2000,3000].forEach(t=>recordFail(st,t));
+  assert.equal(recordFail(st,60000),LOCK_MS-57000);
+  assert.equal(lockLeft(st,3000+LOCK_MS),0);
+});
+
+test('orologio spostato indietro: il blocco non supera mai 5 minuti',()=>{
+  const st=fakeStorage();
+  [1000,2000,3000].forEach(t=>recordFail(st,t));
+  assert.equal(lockLeft(st,-9999999),LOCK_MS);
+});
+
+test('clearFails azzera errori e blocco',()=>{
+  const st=fakeStorage();
+  [1000,2000,3000].forEach(t=>recordFail(st,t));
+  clearFails(st);
+  assert.equal(lockLeft(st,3000),0);
+  assert.equal(failsLeft(st),MAX_FAILS);
 });
