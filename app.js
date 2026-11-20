@@ -667,7 +667,7 @@ function calParts(){
   const {offset,days}=monthGrid(st.y,st.m);
   const ago=agoLabel(daysSince(st.lastDate,todayIso));
   const away=st.y!==now.getFullYear()||st.m!==now.getMonth();
-  const P=[['hd','<div class="hd">'+wm()+'<span class="hd-r">'+(away?'<button class="today-btn" data-act="today">Oggi</button>':'')+'<button class="gear" data-act="settings" aria-label="Impostazioni">'+GEAR+'</button></span></div>'],['banner',banner()],['offline',offlineBar()],['retry',retryBar()]];
+  const P=[['hd','<div class="hd">'+wm()+'<span class="hd-r"><span class="tgd" aria-label="'+daysTogether(since(),todayIso)+' giorni insieme"><b>'+daysTogether(since(),todayIso)+'</b><small>giorni insieme</small></span>'+(away?'<button class="today-btn" data-act="today">Oggi</button>':'')+'<button class="gear" data-act="settings" aria-label="Impostazioni">'+GEAR+'</button></span></div>'],['banner',banner()],['offline',offlineBar()],['retry',retryBar()]];
   P.push(['mnav','<div class="mnav"><button data-act="prev" aria-label="Mese precedente">‹</button><h1>'+MESI[st.m]+' <i>'+st.y+'</i></h1><button data-act="next" aria-label="Mese successivo">›</button></div>']);
   const [ty,tm,td]=todayIso.split('-').map(Number);
   const wdName=DOW_FULL[(new Date(ty,tm-1,td).getDay()+6)%7].toLowerCase();

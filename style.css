@@ -540,3 +540,8 @@ html.covered #cover{display:flex}
 .s-pwb{display:flex;align-items:center;justify-content:space-between;gap:8px}
 @media (prefers-reduced-motion:reduce){.s-sg button,.s-tgl::before,.s-tgl i{transition:none}}
 .s-r:has(.s-sub){padding-top:10px;padding-bottom:10px}
+.mnav h1{display:flex;align-items:baseline;gap:8px}
+.mnav h1 i{display:inline;margin-top:0}
+.tgd{display:flex;flex-direction:column;align-items:flex-end;margin-right:8px;line-height:1.1}
+.tgd b{font-family:var(--fd);font-weight:800;font-size:1.25rem;color:var(--gold)}
+.tgd small{font-size:.6rem;letter-spacing:.06em;color:var(--dm);white-space:nowrap}
