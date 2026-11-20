@@ -124,7 +124,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--fb);-webkit-font-smo
 .stats .sk-n{width:34px;height:26px;margin:4px 0 6px}
 .stats .sk-n.w2{width:70px}
 .stats .sk-l{width:56px;height:10px}
-.filters .fl{pointer-events:none}
+.filters[aria-hidden="true"] .fl{pointer-events:none}
 .sk-p{height:14px;border-radius:7px}
 .sk-cell{pointer-events:none}
 .sk-cell .num{color:var(--dm);opacity:.5}
