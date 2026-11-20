@@ -977,7 +977,7 @@ function springBack(el){
 
 root.addEventListener('touchstart',e=>{
   const p=e.touches[0];
-  touch=e.touches.length===1&&!e.target.closest('.filters,input,.pad')?{x:p.clientX,y:p.clientY,sheet:!!e.target.closest('.sheet'),top:(e.target.closest('.sheet')||{}).scrollTop||0,drag:null}:null;
+  touch=e.touches.length===1&&!e.target.closest('.filters,input,.pad,.gm-s,.hfl,.hms,.s-cols')?{x:p.clientX,y:p.clientY,sheet:!!e.target.closest('.sheet'),top:(e.target.closest('.sheet')||{}).scrollTop||0,drag:null}:null;
 },{passive:true});
 root.addEventListener('touchmove',e=>{
   if(!touch||st.screen!=='app') return;
