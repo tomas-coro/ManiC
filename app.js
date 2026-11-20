@@ -1187,6 +1187,7 @@ root.addEventListener('click',async e=>{
 },true);
 
 let touch=null;
+const SWIPE=60;
 const CLOSE_DRAG=90;
 
 function springBack(el){
@@ -1199,14 +1200,14 @@ function springBack(el){
 
 root.addEventListener('touchstart',e=>{
   const p=e.touches[0];
-  touch=e.touches.length===1&&e.target.closest('.sheet')&&!e.target.closest('input,.gm-s,.hfl,.hms,.s-cols')?{x:p.clientX,y:p.clientY,top:(e.target.closest('.sh-bd')||{}).scrollTop||0,drag:null}:null;
+  touch=e.touches.length===1&&!e.target.closest('input,.gm-s,.hfl,.hms,.s-cols')?{x:p.clientX,y:p.clientY,sheet:!!e.target.closest('.sheet'),top:(e.target.closest('.sh-bd')||{}).scrollTop||0,drag:null}:null;
 },{passive:true});
 root.addEventListener('touchmove',e=>{
   if(!touch||st.screen!=='app') return;
   const p=e.touches[0];
   const dx=p.clientX-touch.x;
   const dy=p.clientY-touch.y;
-  if(!touch.drag&&touch.top===0&&dy>8&&dy>Math.abs(dx)) touch.drag='sheet';
+  if(!touch.drag&&touch.sheet&&touch.top===0&&dy>8&&dy>Math.abs(dx)) touch.drag='sheet';
   if(touch.drag==='sheet'){
     const sh=root.querySelector('.sheet:not(.closing)');
     if(sh) sh.style.transform='translateY('+Math.max(0,dy)+'px)';
@@ -1219,9 +1220,13 @@ root.addEventListener('touchend',async e=>{
   const dy=p.clientY-touch.y;
   const t0=touch;
   touch=null;
-  if(dy>CLOSE_DRAG&&dy>Math.abs(dx)*1.5&&t0.top===0){
-    try{await handle(st.sheet==='add'?'cancel':'close',null);}catch(err){showError(err);}
-  }else if(t0.drag==='sheet') springBack(root.querySelector('.sheet:not(.closing)'));
+  let act=null;
+  if(t0.sheet){
+    if(dy>CLOSE_DRAG&&dy>Math.abs(dx)*1.5&&t0.top===0) act=st.sheet==='add'?'cancel':'close';
+    else if(t0.drag==='sheet') springBack(root.querySelector('.sheet:not(.closing)'));
+  }else if(st.page&&!st.sheet&&dx>SWIPE&&dx>Math.abs(dy)*1.5) act='tab-cal';
+  if(!act) return;
+  try{await handle(act,null);}catch(err){showError(err);}
 },{passive:true});
 
 root.addEventListener('input',e=>{
