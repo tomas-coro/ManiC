@@ -40,6 +40,7 @@ const st={
   sheet:null,
   counts:{sesso:0,pompino:0,leccata:0,anale:0,ditalini:0},
   addDate:null,
+  editId:null,
   addMom:null,
   addAuto:null,
   addClock:'',
@@ -238,7 +239,7 @@ function evItem(e){
   let h='<div class="di'+(open?' open':'')+'" style="--cc:var(--c-'+e.type+')"><button class="di-h" data-act="exp" data-id="'+e.id+'" aria-expanded="'+open+'">'+icon(e.type)+'<span class="di-t"><b>'+e.type+'</b><small>'+sub+'</small></span><span class="di-c" aria-hidden="true">&rsaquo;</span></button>';
   if(open){
     h+='<div class="di-x"><div class="mg">'+MOMENTS.map(m=>'<button class="chip" data-act="emom" data-id="'+e.id+'" data-k="'+m.k+'" aria-pressed="'+(e.moment===m.k)+'"'+dis+'>'+MIC[m.k]+'<span>'+m.label+'</span></button>').join('')+'</div>'
-      +'<div class="di-r"><button class="lk" data-act="emom" data-id="'+e.id+'" data-k=""'+(e.moment?'':' aria-pressed="true"')+dis+'>Non ricordo</button><button class="lk" data-act="del" data-id="'+e.id+'"'+dis+'>Rimuovi</button></div></div>';
+      +'<div class="di-r"><button class="lk" data-act="emom" data-id="'+e.id+'" data-k=""'+(e.moment?'':' aria-pressed="true"')+dis+'>Non ricordo</button><button class="lk" data-act="edit" data-id="'+e.id+'"'+dis+'>Modifica</button><button class="lk" data-act="del" data-id="'+e.id+'"'+dis+'>Rimuovi</button></div></div>';
   }
   return h+'</div>';
 }
@@ -261,16 +262,19 @@ function detail(){
 function addPanel(){
   const iso=st.addDate;
   const past=iso!==todayIso;
-  const total=TYPES.reduce((n,t)=>n+st.counts[t],0);
-  const ok=total>0&&st.addMom!==null&&iso<=todayIso&&!st.busy&&!st.offline;
-  const auto=!past&&!st.addTouched&&st.addMom===st.addAuto;
+  const editing=st.editId?findEvent(st.editId):null;
+  const total=editing?1:TYPES.reduce((n,t)=>n+st.counts[t],0);
+  const changed=!editing||iso!==editing.event_date||(st.addMom==='nd'?null:st.addMom)!==(editing.moment||null)||st.note.trim()!==(editing.note||'');
+  const ok=total>0&&changed&&st.addMom!==null&&iso<=todayIso&&!st.busy&&!st.offline;
+  const auto=!editing&&!past&&!st.addTouched&&st.addMom===st.addAuto;
   const hint=auto?'<i></i>Adesso sono le '+st.addClock+': scelta in automatico':st.addMom===null?'Scegli in che fascia è successo':st.addMom==='nd'?'Va in &ldquo;Senza momento&rdquo;':'Fascia scelta da te';
-  let h='<div class="sh-hd"><div class="sh-tt">Aggiungi<small>'+dateTitle(iso)+'</small></div><button class="sh-x" data-act="cancel" aria-label="Torna al giorno">×</button></div><div class="sh-bd">';
+  let h='<div class="sh-hd"><div class="sh-tt">'+(editing?'Modifica':'Aggiungi')+'<small>'+dateTitle(iso)+'</small></div><button class="sh-x" data-act="cancel" aria-label="Torna al giorno">×</button></div><div class="sh-bd">';
   h+='<div class="wk" role="group" aria-label="Giorno">'+stripDays(iso).map(d=>{
     const [y,m,n]=d.split('-').map(Number);
     return '<button data-act="date" data-v="'+d+'" aria-pressed="'+(d===iso)+'"><span>'+GIORNI[new Date(y,m-1,n).getDay()].slice(0,3)+'</span><b>'+n+'</b></button>';
   }).join('')+'</div>';
-  h+='<div class="ar-list">'+TYPES.map(t=>{
+  h+='<label class="mnd more">Altro giorno<input type="date" class="dpk" data-act="datepick" max="'+todayIso+'" value="'+iso+'" aria-label="Scegli un altro giorno"></label>';
+  h+=editing?'<div class="ar-list"><div class="ar on" style="--cc:var(--c-'+editing.type+')">'+icon(editing.type)+'<span class="ar-n">'+editing.type+'<small>'+flowOf(editing.type,st.me.slot)+'</small></span></div></div>':'<div class="ar-list">'+TYPES.map(t=>{
     const n=st.counts[t];
     return '<div class="ar'+(n?' on':'')+'" style="--cc:var(--c-'+t+')">'+icon(t)+'<span class="ar-n">'+t+'<small>'+flowOf(t,st.me.slot)+'</small></span><button class="ar-b" data-act="dec" data-v="'+t+'" aria-label="Una volta in meno: '+t+'"'+(n?'':' disabled')+'>-</button><b class="ar-c">'+n+'</b><button class="ar-b p" data-act="inc" data-v="'+t+'" aria-label="Una volta in più: '+t+'">+</button></div>';
   }).join('')+'</div>';
@@ -278,7 +282,7 @@ function addPanel(){
   h+='<div class="mseg" role="group" aria-label="Fascia">'+MOMENTS.map(m=>'<button data-act="mom" data-v="'+m.k+'" aria-pressed="'+(st.addMom===m.k)+'">'+MIC[m.k]+m.label+'<small>'+m.range+'</small></button>').join('')+'</div>';
   h+='<button class="mnd" data-act="mom" data-v="nd" aria-pressed="'+(st.addMom==='nd')+'">Non ricordo</button>';
   h+='<div class="sh-lab">Nota (facoltativa)</div><input class="note" type="text" maxlength="80" placeholder="una riga, se vuoi" value="'+esc(st.note)+'" data-act="note" aria-label="Nota">';
-  const label=st.busy?'Salvataggio':!total?'Scegli un atto':st.addMom===null?'Scegli la fascia':'Salva &middot; '+total;
+  const label=st.busy?'Salvataggio':editing?(st.addMom===null?'Scegli la fascia':changed?'Salva modifica':'Nessuna modifica'):!total?'Scegli un atto':st.addMom===null?'Scegli la fascia':'Salva &middot; '+total;
   return h+'</div><div class="sh-ft"><button class="cta ghost" data-act="cancel">Annulla</button><button class="cta" data-act="save"'+(ok?'':' disabled')+'>'+label+'</button></div>';
 }
 
@@ -981,10 +985,33 @@ function autoMom(){
 function startAdd(iso,mom){
   autoMom();
   TYPES.forEach(ty=>{st.counts[ty]=0});
-  st.note='';st.error='';st.open=null;
+  st.note='';st.error='';st.open=null;st.editId=null;
   st.sheet='add';st.addDate=iso;
   st.addTouched=!!mom;
   st.addMom=mom||(iso===todayIso?st.addAuto:null);
+}
+
+function startEdit(ev){
+  autoMom();
+  st.editId=ev.id;
+  st.note=ev.note||'';st.error='';st.open=null;
+  st.sheet='add';st.addDate=ev.event_date;
+  st.addTouched=true;
+  st.addMom=ev.moment||'nd';
+}
+
+async function applyEdit(id,patch){
+  const saved=await api.updateEvent(id,patch);
+  patchEvent(id,saved);
+  persist();
+  st.sel=saved.event_date;st.sheet='day';st.open=null;st.editId=null;
+  const {from,to}=monthRange(st.y,st.m);
+  if(saved.event_date<from||saved.event_date>=to){
+    const [yy,mm]=saved.event_date.split('-').map(Number);
+    st.y=yy;st.m=mm-1;
+    loadAll();
+  }
+  st.lastDate=await api.lastEventDate(todayIso);
 }
 
 function patchEvent(id,patch){
@@ -1081,7 +1108,11 @@ async function handle(act,t){
     if(st.sel>todayIso) return;
     startAdd(st.sel,act==='addin'?t.dataset.v:null);
   }
-  else if(act==='cancel'){st.sheet='day';st.open=null;st.error='';}
+  else if(act==='cancel'){st.sheet='day';st.open=null;st.editId=null;st.error='';}
+  else if(act==='edit'){
+    const ev=findEvent(t.dataset.id);
+    if(ev) startEdit(ev);
+  }
   else if(act==='exp'){st.open=st.open===t.dataset.id?null:t.dataset.id;}
   else if(act==='inc'){if(st.counts[t.dataset.v]<20) st.counts[t.dataset.v]++;}
   else if(act==='dec'){if(st.counts[t.dataset.v]>0) st.counts[t.dataset.v]--;}
@@ -1096,6 +1127,15 @@ async function handle(act,t){
   else if(st.offline&&(act==='save'||act==='del'||act==='save-name'||act==='emom'||act==='undo')){
     showError(new Error(OFFLINE_MSG));
     return;
+  }
+  else if(act==='save'&&st.editId){
+    const ev=findEvent(st.editId);
+    if(!ev||st.addMom===null||st.addDate>todayIso) return;
+    const before={id:ev.id,event_date:ev.event_date,moment:ev.moment||null,note:ev.note||''};
+    st.busy=true;render();
+    await applyEdit(ev.id,{event_date:st.addDate,moment:st.addMom==='nd'?null:st.addMom,note:st.note.trim()});
+    st.busy=false;
+    toast('Modificato',{revert:before});
   }
   else if(act==='save'){
     const list=[];
@@ -1145,13 +1185,19 @@ async function handle(act,t){
     const ev=st.undo;
     if(!ev) return;
     hideToast();
-    const [back]=await api.addEvents([{couple_id:ev.couple_id,event_date:ev.event_date,type:ev.type,who:ev.who,note:ev.note,moment:ev.moment||null}]);
-    const {from,to}=monthRange(st.y,st.m);
-    if(back.event_date>=from&&back.event_date<to) st.events.push(back);
-    if(st.all) st.all.push(back);
-    persist();
-    st.lastDate=await api.lastEventDate(todayIso);
-    toast('Ripristinato');
+    if(ev.revert){
+      const r=ev.revert;
+      await applyEdit(r.id,{event_date:r.event_date,moment:r.moment,note:r.note});
+      toast('Modifica annullata');
+    }else{
+      const [back]=await api.addEvents([{couple_id:ev.couple_id,event_date:ev.event_date,type:ev.type,who:ev.who,note:ev.note,moment:ev.moment||null}]);
+      const {from,to}=monthRange(st.y,st.m);
+      if(back.event_date>=from&&back.event_date<to) st.events.push(back);
+      if(st.all) st.all.push(back);
+      persist();
+      st.lastDate=await api.lastEventDate(todayIso);
+      toast('Ripristinato');
+    }
   }
   else if(act==='edit-name'){st.editName=t.dataset.v;}
   else if(act==='cancel-name'){st.editName=null;}
@@ -1182,7 +1228,7 @@ root.addEventListener('click',async e=>{
     st.sheet=st.sheet==='add'?'day':null;st.open=null;render();return;
   }
   const t=e.target.closest('[data-act]');
-  if(!t||t.dataset.act==='note') return;
+  if(!t||t.dataset.act==='note'||t.dataset.act==='datepick') return;
   try{await handle(t.dataset.act,t);}catch(err){showError(err);}
 },true);
 
@@ -1228,6 +1274,12 @@ root.addEventListener('touchend',async e=>{
   if(!act) return;
   try{await handle(act,null);}catch(err){showError(err);}
 },{passive:true});
+
+root.addEventListener('change',async e=>{
+  const t=e.target;
+  if(!t.dataset||t.dataset.act!=='datepick'||!t.value||t.value>todayIso) return;
+  try{await handle('date',{dataset:{v:t.value}});}catch(err){showError(err);}
+});
 
 root.addEventListener('input',e=>{
   if(e.target.dataset&&e.target.dataset.act==='note') st.note=e.target.value;

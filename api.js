@@ -75,6 +75,13 @@ export async function setMoment(id,moment){
   if(!data.length) throw new Error('Fascia non salvata: evento non trovato');
 }
 
+export async function updateEvent(id,patch){
+  const {data,error}=await sb.from('events').update(patch).eq('id',id).select('id,couple_id,event_date,type,who,note,moment');
+  fail(error,'Modifica non riuscita');
+  if(!data.length) throw new Error('Modifica non riuscita: evento non trovato');
+  return data[0];
+}
+
 export async function removeEvent(id){
   const {data,error}=await sb.from('events').delete().eq('id',id).select('id');
   fail(error,'Rimozione non riuscita');

@@ -500,3 +500,5 @@ button.s-r:active{background:var(--sf2)}
 .toast.act{display:flex;align-items:center;gap:6px;padding:0 6px 0 18px;min-height:46px;pointer-events:auto}
 .toast.act button{border:0;background:none;color:var(--gold);font-weight:700;font-size:.86rem;min-height:44px;padding:0 12px;cursor:pointer}
 .phone.locked .toast{bottom:calc(var(--tabh,72px) + 98px)}
+.more{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;width:max-content}
+.dpk{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px}
