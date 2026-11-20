@@ -223,6 +223,36 @@ export function momentCounts(events,key){
   return c;
 }
 
+const foldChar=c=>c.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+
+function fold(str){
+  let s='';
+  const map=[];
+  for(let i=0;i<str.length;i++){
+    const f=foldChar(str[i]);
+    for(let j=0;j<f.length;j++){s+=f[j];map.push(i);}
+  }
+  return {s,map};
+}
+
+export function searchNotes(events,query){
+  const q=fold(String(query)).s.trim();
+  if(q.length<2) return [];
+  const out=[];
+  events.forEach(e=>{
+    if(!e.note) return;
+    const {s,map}=fold(e.note);
+    const ranges=[];
+    let at=s.indexOf(q);
+    while(at!==-1){
+      ranges.push([map[at],map[at+q.length-1]+1]);
+      at=s.indexOf(q,at+q.length);
+    }
+    if(ranges.length) out.push({event:e,ranges});
+  });
+  return out.sort((a,b)=>a.event.event_date<b.event.event_date?1:a.event.event_date>b.event.event_date?-1:0);
+}
+
 export function records(events,startIso,todayIso){
   const DAY=864e5;
   const day=iso=>{const [y,m,d]=iso.split('-').map(Number);return Date.UTC(y,m-1,d);};

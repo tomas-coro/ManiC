@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {TYPES,pad,isoDate,flowOf,balance,monthKey,monthsStats,prevMonthKey,deltas,prevOf,daysTogether,togetherLabel,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice,MOMENTS,fasciaOf,whoOf,heatMap,weekdayCounts,records,momentCounts} from './logic.js';
+import {TYPES,pad,isoDate,flowOf,balance,monthKey,monthsStats,prevMonthKey,deltas,prevOf,daysTogether,togetherLabel,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice,MOMENTS,fasciaOf,whoOf,heatMap,weekdayCounts,records,momentCounts,searchNotes} from './logic.js';
 
 test('pad aggiunge lo zero',()=>{
   assert.equal(pad(3),'03');
@@ -257,4 +257,33 @@ test('momentCounts: parita = prima fascia in ordine, nessun atto con fascia = fa
   const none=[{event_date:'2026-11-10',moment:null}];
   assert.deepEqual(momentCounts(none,null),{mat:0,pom:0,ser:0,not:0,none:1,fav:null});
   assert.equal(momentCounts([],null).fav,null);
+});
+
+test('searchNotes ignora maiuscole e accenti, tiene solo atti con nota, ordina dal piu recente',()=>{
+  const ev=[
+    {id:'a',event_date:'2026-11-10',note:'Cena fuori'},
+    {id:'b',event_date:'2026-11-14',note:'dopo la CENA, che serata'},
+    {id:'c',event_date:'2026-11-12',note:''},
+    {id:'d',event_date:'2026-11-13',note:null},
+    {id:'e',event_date:'2026-11-15',note:'colazione'}
+  ];
+  assert.deepEqual(searchNotes(ev,'cena').map(r=>r.event.id),['b','a']);
+  assert.deepEqual(searchNotes(ev,'  CENA ').map(r=>r.event.id),['b','a']);
+});
+
+test('searchNotes: accenti equivalenti e intervalli da evidenziare sul testo originale',()=>{
+  const ev=[{id:'a',event_date:'2026-11-10',note:'Così è più bello'}];
+  const r=searchNotes(ev,'piu');
+  assert.equal(r.length,1);
+  assert.deepEqual(r[0].ranges,[[7,10]]);
+  assert.equal('Così è più bello'.slice(7,10),'più');
+  assert.equal(searchNotes(ev,'COSI')[0].ranges[0][0],0);
+});
+
+test('searchNotes: tutte le occorrenze, query corta o vuota = nessun risultato',()=>{
+  const ev=[{id:'a',event_date:'2026-11-10',note:'ababab'}];
+  assert.deepEqual(searchNotes(ev,'ab')[0].ranges,[[0,2],[2,4],[4,6]]);
+  assert.deepEqual(searchNotes(ev,'a'),[]);
+  assert.deepEqual(searchNotes(ev,'   '),[]);
+  assert.deepEqual(searchNotes(ev,''),[]);
 });

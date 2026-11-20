@@ -1,4 +1,4 @@
-import {TYPES,MESI,GIORNI,DOW,isoDate,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,flowOf,MOMENTS,fasciaOf,whoOf,TOGETHER_SINCE,balance,monthKey,monthsStats,prevMonthKey,prevOf,daysTogether,togetherLabel,heatMap,weekdayCounts,records,momentCounts} from './logic.js';
+import {TYPES,MESI,GIORNI,DOW,isoDate,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,flowOf,MOMENTS,fasciaOf,whoOf,TOGETHER_SINCE,balance,monthKey,monthsStats,prevMonthKey,prevOf,daysTogether,togetherLabel,heatMap,weekdayCounts,records,momentCounts,searchNotes} from './logic.js';
 import {SPRITE} from './icons.js';
 import * as api from './api.js';
 import {fetchSignature,shortVersion} from './update.js';
@@ -86,6 +86,7 @@ document.body.insertAdjacentHTML('afterbegin',SPRITE);
 const icon=(t,cls)=>'<svg class="ic '+(cls||'')+'" aria-hidden="true"><use href="#i-'+t+'"/></svg>';
 const wm=full=>'<img class="wmi" src="assets/wordmark-'+(full?'completo':'lettere')+'.png" alt="ManiC">';
 const LOCK='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+const LENS='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>';
 const GEAR='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
 
 const BARS='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V11M12 20V4M19 20v-6"/></svg>';
@@ -642,7 +643,7 @@ function recapPending(){
 }
 
 function tabs(){
-  const cur=st.page==='settings'?'settings':st.page==='stats'?'stats':'cal';
+  const cur=st.page==='settings'?'settings':st.page==='stats'?'stats':st.page==='search'?'':'cal';
   const b=(id,act,svg,label,dot)=>'<button class="tab" data-act="'+act+'" aria-current="'+(cur===id)+'">'+svg+(dot?'<i class="dot"></i>':'')+'<span>'+label+'</span></button>';
   const adding=st.sheet==='add';
   const plus='<button class="plus'+(adding?' x':'')+'" data-act="quick" aria-label="'+(adding?'Torna al giorno':'Segna l\'oggi')+'"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>';
@@ -654,6 +655,38 @@ const body=h=>h?'<div class="sb">'+h+'</div>':'';
 
 function statsParts(){
   return [['hd',BACK('Statistiche')],['banner',banner()],['offline',offlineBar()],['recap',st.statsView==='mese'?recapHtml():''],['body',body(statsBody())]];
+}
+
+function hl(note,ranges){
+  let out='';
+  let at=0;
+  ranges.forEach(([a,b])=>{out+=esc(note.slice(at,a))+'<mark>'+esc(note.slice(a,b))+'</mark>';at=b;});
+  return out+esc(note.slice(at));
+}
+
+const SEARCH_BAR='<div class="srch"><label class="srch-f">'+LENS+'<input id="q" type="search" data-act="q" placeholder="Cerca nelle note" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Cerca nelle note"></label><button class="srch-x" data-act="tab-cal">Annulla</button></div>';
+
+function resultRow(r){
+  const e=r.event;
+  const [y,m,d]=e.event_date.split('-').map(Number);
+  const when=DOW_FULL[(new Date(y,m-1,d).getDay()+6)%7].slice(0,3).toLowerCase()+' '+d+' '+MESI_BREVI[m-1].toLowerCase();
+  return '<button class="sr" data-act="sres" data-iso="'+e.event_date+'">'+icon(e.type)+'<span class="sr-b"><span class="sr-m"><b>'+when+'</b> · '+e.type+(e.moment?' · '+momLabel(e.moment).toLowerCase():'')+'</span><span class="sr-n">'+hl(e.note,r.ranges)+'</span></span></button>';
+}
+
+function searchBody(){
+  if(!st.all){
+    return st.allErr?'<p class="empty">Non riesco a leggere i dati.</p><button class="link" data-act="retry-stats">Riprova</button>':'<p class="empty">Carico i dati…</p>';
+  }
+  if(!st.all.some(e=>e.note&&e.note.trim())) return '<p class="empty">Ancora nessuna nota: scrivila quando segni un atto.</p>';
+  const q=(st.q||'').trim();
+  if(q.length<2) return '<p class="empty">Scrivi almeno 2 lettere per cercare.</p>';
+  const res=searchNotes(st.all,q);
+  if(!res.length) return '<p class="empty">Nessuna nota con «'+esc(q)+'».</p>';
+  return '<div class="sr-c" role="status">'+res.length+(res.length===1?' risultato':' risultati')+'</div><div class="sr-l">'+res.map(resultRow).join('')+'</div>';
+}
+
+function searchParts(){
+  return [['hd',BACK('Cerca')],['banner',banner()],['offline',offlineBar()],['bar',SEARCH_BAR],['body',body(searchBody())]];
 }
 
 function settingsParts(){
@@ -687,7 +720,7 @@ function calParts(){
   const {offset,days}=monthGrid(st.y,st.m);
   const ago=agoLabel(daysSince(st.lastDate,todayIso));
   const away=st.y!==now.getFullYear()||st.m!==now.getMonth();
-  const P=[['hd','<div class="hd">'+wm()+'<span class="hd-r"><span class="tgd" aria-label="'+daysTogether(since(),todayIso)+' giorni insieme"><b>'+daysTogether(since(),todayIso)+'</b><small>giorni insieme</small></span>'+(away?'<button class="today-btn" data-act="today">Oggi</button>':'')+'<button class="gear" data-act="settings" aria-label="Impostazioni">'+GEAR+'</button></span></div>'],['banner',banner()],['offline',offlineBar()],['retry',retryBar()]];
+  const P=[['hd','<div class="hd">'+wm()+'<span class="hd-r"><span class="tgd" aria-label="'+daysTogether(since(),todayIso)+' giorni insieme"><b>'+daysTogether(since(),todayIso)+'</b><small>giorni insieme</small></span>'+(away?'<button class="today-btn" data-act="today">Oggi</button>':'')+'<button class="gear" data-act="search" aria-label="Cerca nelle note">'+LENS+'</button><button class="gear" data-act="settings" aria-label="Impostazioni">'+GEAR+'</button></span></div>'],['banner',banner()],['offline',offlineBar()],['retry',retryBar()]];
   P.push(['mnav','<div class="mnav"><button data-act="prev" aria-label="Mese precedente">‹</button><h1>'+MESI[st.m]+' <i>'+st.y+'</i></h1><button data-act="next" aria-label="Mese successivo">›</button></div>']);
   const [ty,tm,td]=todayIso.split('-').map(Number);
   const wdName=DOW_FULL[(new Date(ty,tm-1,td).getDay()+6)%7].toLowerCase();
@@ -800,7 +833,7 @@ function appShell(){
 function renderApp(){
   const phone=appShell();
   const main=phone.firstElementChild;
-  const page=st.page==='stats'&&st.me?'stats':st.page==='settings'&&st.me?'settings':'cal';
+  const page=st.page==='stats'&&st.me?'stats':st.page==='settings'&&st.me?'settings':st.page==='search'&&st.me?'search':'cal';
   const changed=shellPage!==undefined&&page!==shellPage;
   if(page!==shellPage){
     main.replaceChildren();
@@ -810,7 +843,7 @@ function renderApp(){
   }
   phone.classList.toggle('locked',!!st.sheet&&page!=='settings');
   phone.classList.toggle('still',(page==='cal'&&!!st.loadErr)||(page==='stats'&&!st.all&&!!st.allErr));
-  sync(main,page==='stats'?statsParts():page==='settings'?settingsParts():calParts());
+  sync(main,page==='stats'?statsParts():page==='settings'?settingsParts():page==='search'?searchParts():calParts());
   if(changed) fadeIn(main);
   const mKey=st.y+'-'+st.m;
   if(page==='cal'){
@@ -1207,6 +1240,16 @@ async function handle(act,t){
     if(!st.all&&!st.allLoading) loadStats();
   }
   else if(act==='tab-cal'){st.page=null;st.sheet=null;st.error='';}
+  else if(act==='search'){
+    if(!st.me) return;
+    st.page='search';st.sheet=null;st.error='';st.q='';
+    if(!st.all&&!st.allLoading) loadStats();
+  }
+  else if(act==='sres'){
+    const [yy,mm]=t.dataset.iso.split('-').map(Number);
+    st.page=null;st.sel=t.dataset.iso;st.sheet='day';st.open=null;st.error='';
+    if(st.y!==yy||st.m!==mm-1){st.y=yy;st.m=mm-1;loadAll();}
+  }
   else if(act==='retry-stats'){loadStats();}
   else if(act==='recap-open'){st.statsView='mese';st.statsMo=t.dataset.v;st.statsDay=null;}
   else if(act==='recap-x'){
@@ -1371,6 +1414,7 @@ async function handle(act,t){
   else if(act==='upd-reload'){location.reload();return;}
   else if(act==='logout') await signOutNow();
   render();
+  if(act==='search'){const q=document.getElementById('q');if(q) q.focus();}
 }
 
 root.addEventListener('click',async e=>{
@@ -1379,7 +1423,7 @@ root.addEventListener('click',async e=>{
     st.sheet=st.sheet==='add'?'day':null;st.open=null;render();return;
   }
   const t=e.target.closest('[data-act]');
-  if(!t||t.dataset.act==='note'||t.dataset.act==='datepick') return;
+  if(!t||t.dataset.act==='note'||t.dataset.act==='datepick'||t.dataset.act==='q') return;
   try{await handle(t.dataset.act,t);}catch(err){showError(err);}
 },true);
 
@@ -1433,7 +1477,9 @@ root.addEventListener('change',async e=>{
 });
 
 root.addEventListener('input',e=>{
-  if(e.target.dataset&&e.target.dataset.act==='note') st.note=e.target.value;
+  if(!e.target.dataset) return;
+  if(e.target.dataset.act==='note') st.note=e.target.value;
+  else if(e.target.dataset.act==='q'){st.q=e.target.value;render();}
 });
 
 root.addEventListener('submit',async e=>{

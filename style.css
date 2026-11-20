@@ -562,3 +562,22 @@ html.covered #cover{display:flex}
 .s-card .mnone span{flex:1}
 .s-card .mnone b{font-family:var(--fd);font-weight:800;color:var(--dm)}
 .sx .hrec .wide{grid-column:1/-1}
+
+.srch{display:flex;align-items:center;gap:10px;margin:2px 0 12px}
+.srch-f{flex:1;display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border-radius:12px;background:var(--sf2);color:var(--dm)}
+.srch-f svg{flex:none}
+.srch-f input{flex:1;min-width:0;background:none;border:0;outline:0;color:var(--tx);font:inherit;font-size:16px;padding:0}
+.srch-f:focus-within{box-shadow:0 0 0 1px var(--gold)}
+.srch-x{flex:none;min-height:44px;padding:0 2px;background:none;border:0;color:var(--gold);font:inherit;font-size:.95rem;cursor:pointer}
+.sr-c{font-size:.74rem;letter-spacing:.06em;color:var(--dm);margin:2px 2px 8px}
+.sr-l{display:flex;flex-direction:column;gap:8px}
+.sr{display:flex;align-items:flex-start;gap:12px;width:100%;text-align:left;padding:12px;border-radius:14px;border:1px solid var(--ln);background:var(--sf);color:var(--tx);font:inherit;cursor:pointer}
+.sr:active{transform:scale(.98)}
+.sr .ic{flex:none;width:26px;height:26px;margin-top:1px}
+.sr-b{display:flex;flex-direction:column;gap:3px;min-width:0}
+.sr-m{font-size:.74rem;color:var(--dm)}
+.sr-m b{color:var(--tx);font-weight:700}
+.sr-n{font-size:.92rem;line-height:1.35;overflow-wrap:anywhere}
+.sr-n mark{background:none;color:var(--gold);font-weight:700}
+.srch-f input,.srch-f input:focus{border:0;box-shadow:none;outline:0;background:none;border-radius:0;min-height:0;height:auto;padding:0;-webkit-appearance:none;appearance:none}
+.srch-f input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none;width:18px;height:18px;margin-left:6px;background:var(--dm);border-radius:50%;opacity:.8;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 6l12 12M18 6L6 18' stroke='%23000' stroke-width='2.6' stroke-linecap='round' fill='none'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 6l12 12M18 6L6 18' stroke='%23000' stroke-width='2.6' stroke-linecap='round' fill='none'/%3E%3C/svg%3E") center/contain no-repeat}
