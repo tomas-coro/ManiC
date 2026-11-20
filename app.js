@@ -446,7 +446,8 @@ function recapPending(){
 function tabs(){
   const cur=st.page==='settings'?'settings':st.page==='stats'?'stats':'cal';
   const b=(id,act,svg,label,dot)=>'<button class="tab" data-act="'+act+'" aria-current="'+(cur===id)+'">'+svg+(dot?'<i class="dot"></i>':'')+'<span>'+label+'</span></button>';
-  return '<nav class="tabs" aria-label="Sezioni">'+b('cal','tab-cal',CAL,'Calendario',false)+b('stats','stats',BARS,'Statistiche',recapPending())+b('settings','settings',GEAR,'Impostazioni',false)+'</nav>';
+  const plus='<button class="plus" data-act="quick" aria-label="Segna l\'oggi"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>';
+  return '<nav class="tabs" aria-label="Sezioni">'+b('cal','tab-cal',CAL,'Calendario',false)+plus+b('stats','stats',BARS,'Statistiche',recapPending())+'</nav>';
 }
 
 const BACK=t=>'<div class="hd hd-back"><button class="gear" data-act="tab-cal" aria-label="Torna al calendario">&lsaquo;</button><h1 class="pg-t">'+t+'</h1><span></span></div>';
@@ -473,10 +474,6 @@ function recapHtml(){
     +'<button class="link rc-go" data-act="recap-open" data-v="'+c.key+'">Vedi i dettagli</button></div>';
 }
 
-function skStats(){
-  return '<div class="stats" aria-hidden="true"><span><i class="sk sk-n"></i><i class="sk sk-l"></i></span><span class="sep"></span><span><i class="sk sk-n"></i><i class="sk sk-l"></i></span><span class="sep"></span><span><i class="sk sk-n"></i><i class="sk sk-l"></i></span><span class="sep"></span><span><i class="sk sk-n w2"></i><i class="sk sk-l"></i></span></div>';
-}
-
 function skFilters(){
   return '<div class="filters" aria-hidden="true">'+[64,92,86,84,74].map(w=>'<span class="fl"><i class="sk sk-p" style="width:'+w+'px"></i></span>').join('')+'</div>';
 }
@@ -491,11 +488,17 @@ function calParts(){
   const {offset,days}=monthGrid(st.y,st.m);
   const ago=agoLabel(daysSince(st.lastDate,todayIso));
   const away=st.y!==now.getFullYear()||st.m!==now.getMonth();
-  const P=[['hd','<div class="hd">'+wm()+(away?'<button class="today-btn" data-act="today">Oggi</button>':'')+'</div>'],['banner',banner()],['offline',offlineBar()],['retry',retryBar()]];
+  const P=[['hd','<div class="hd">'+wm()+'<span class="hd-r">'+(away?'<button class="today-btn" data-act="today">Oggi</button>':'')+'<button class="gear" data-act="settings" aria-label="Impostazioni">'+GEAR+'</button></span></div>'],['banner',banner()],['offline',offlineBar()],['retry',retryBar()]];
   P.push(['mnav','<div class="mnav"><button data-act="prev" aria-label="Mese precedente">‹</button><h1>'+MESI[st.m]+' <i>'+st.y+'</i></h1><button data-act="next" aria-label="Mese successivo">›</button></div>']);
-  P.push(['stats',(sk?skStats():'<div class="stats"><span><b>'+stats.total+'</b>atti nel mese</span><span class="sep"></span><span><b>'+stats.activeDays+'</b>giorni attivi</span><span class="sep"></span><span><b class="g">'+daysTogether(TOGETHER_SINCE,todayIso)+'</b>giorni insieme</span><span class="sep"></span><span><b class="t">'+ago+'</b>ultima volta</span></div>')]);
-  P.push(['filters',(sk?skFilters():'<div class="filters" role="group" aria-label="Filtra per tipo"><button class="fl" data-act="filter" data-v="" aria-pressed="'+(st.filter===null)+'">Tutti <span class="n">'+stats.total+'</span></button>'
-    +TYPES.map(t=>'<button class="fl" style="--cc:var(--c-'+t+')" data-act="filter" data-v="'+t+'" aria-pressed="'+(st.filter===t)+'">'+icon(t,'sm')+t+' <span class="n">'+stats.counts[t]+'</span></button>').join('')+'</div>')]);
+  const [ty,tm,td]=todayIso.split('-').map(Number);
+  const wdName=DOW_FULL[(new Date(ty,tm-1,td).getDay()+6)%7].toLowerCase();
+  const todayN=st.events.filter(e=>e.event_date===todayIso).length;
+  const line=away
+    ?'<b>'+stats.total+'</b> atti<em>·</em><b>'+stats.activeDays+'</b> giorni attivi'
+    :'<b class="g">Oggi</b> '+wdName+' '+td+'<em>·</em>'+(todayN?'segnato'+(todayN>1?' ('+todayN+')':''):'niente ancora')+'<em>·</em>ultima volta <b>'+ago+'</b>';
+  P.push(['stats',(sk?'<p class="tl" aria-hidden="true"><i class="sk sk-tl"></i></p>':'<p class="tl">'+line+'</p>')]);
+  P.push(['filters',(sk?skFilters():'<div class="filters" role="group" aria-label="Filtra per tipo"><button class="fl" data-act="filter" data-v="" aria-pressed="'+(st.filter===null)+'" aria-label="Tutti, '+stats.total+'">Tutti</button>'
+    +TYPES.map(t=>'<button class="fl" style="--cc:var(--c-'+t+')" data-act="filter" data-v="'+t+'" aria-pressed="'+(st.filter===t)+'" aria-label="'+t+', '+stats.counts[t]+'">'+icon(t,'sm')+'</button>').join('')+'</div>')]);
   P.push(['dow','<div class="dow">'+DOW.map(d=>'<span>'+d+'</span>').join('')+'</div>']);
   let h='<div class="grid" style="--rows:'+Math.ceil((offset+days)/7)+'">';
   for(let i=0;i<offset;i++) h+='<span class="cell pad"></span>';
@@ -504,7 +507,8 @@ function calParts(){
     const types=typesOnDay(st.events,id);
     const cnt=countsOnDay(st.events,id);
     const dim=st.filter&&types.length&&!types.includes(st.filter);
-    const cls=(types.length?' has':'')+(id===todayIso?' today':'')+(id>todayIso?' fut':'')+(dim?' dim':'');
+    const n=types.reduce((a,t)=>a+cnt[t],0);
+    const cls=(types.length?' has':'')+(n>=5?' v3':n>=3?' v2':n>=1?' v1':'')+(id===todayIso?' today':'')+(id>todayIso?' fut':'')+(dim?' dim':'');
     h+='<button class="cell'+cls+'" data-act="day" data-iso="'+id+'" aria-label="'+d+' '+MESI[st.m]+(types.length?': '+types.map(t=>t+(cnt[t]>1?' x'+cnt[t]:'')).join(', '):'')+'"><span class="num">'+d+'</span><span class="ics">'+(types.length>4?types.slice(0,3):types).map(t=>'<span class="icn">'+icon(t,'sm')+(cnt[t]>1?'<i>'+cnt[t]+'</i>':'')+'</span>').join('')+(types.length>4?'<span class="more">+'+(types.length-3)+'</span>':'')+'</span></button>';
   }
   if(sk) for(let d=1;d<=days;d++) h+='<span class="cell sk-cell"><span class="num">'+d+'</span><span class="sk sk-ic"></span></span>';
@@ -873,6 +877,18 @@ async function handle(act,t){
     st.dir=tgt<cur?-1:1;
     st.y=now.getFullYear();st.m=now.getMonth();st.error='';
     loadAll();
+  }
+  else if(act==='quick'){
+    if(st.offline){showError(new Error('Sei offline: serve la rete per modificare'));return;}
+    const cur=st.y*12+st.m;
+    const tgt=now.getFullYear()*12+now.getMonth();
+    st.page=null;st.sel=todayIso;st.sheet='day';st.adding=true;st.error='';st.note='';
+    TYPES.forEach(ty=>{st.counts[ty]=0});
+    if(cur!==tgt){
+      st.dir=tgt<cur?-1:1;
+      st.y=now.getFullYear();st.m=now.getMonth();
+      loadAll();
+    }
   }
   else if(act==='retry'){loadAll();}
   else if(act==='stats'){

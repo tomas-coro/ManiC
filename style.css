@@ -405,3 +405,32 @@ button.s-r:active{background:var(--sf2)}
 .s-cn{width:44px;height:44px;border:0;background:none;color:var(--dm);font-size:1.4rem;cursor:pointer}
 .s-ft{text-align:center;font-size:.68rem;color:var(--dm);margin:18px 0 0}
 @media (prefers-reduced-motion:reduce){.s-r{transition:none}}
+
+.hd{justify-content:space-between}
+.hd-r .today-btn{position:static;transform:none;margin-right:4px}
+.hd .gear svg{width:23px;height:23px}
+.hd .gear{margin-right:-10px}
+.mnav{display:flex;align-items:flex-end;margin:4px 0 8px}
+.mnav h1{order:1;flex:1;text-align:left;font-size:2.4rem}
+.mnav h1 i{font-size:.8rem;letter-spacing:.2em;font-weight:600}
+.mnav button{order:2}
+.tl{margin:0 0 10px;font-size:.78rem;color:var(--dm)}
+.tl b{color:var(--tx);font-weight:700}
+.tl b.g{color:var(--gold)}
+.tl em{font-style:normal;margin:0 7px;color:var(--ln)}
+.sk-tl{display:block;width:230px;height:14px}
+.filters{gap:7px}
+.fl{height:44px;min-width:44px;justify-content:center;padding:0 13px;border:1px solid var(--ln);border-radius:22px;background:var(--sf)}
+.fl[aria-pressed="true"]{border-color:var(--gold);color:var(--tx)}
+.fl .ic{width:20px;height:20px}
+.cell.v1{background:rgba(192,54,75,.1)}
+.cell.v2{background:rgba(192,54,75,.2)}
+.cell.v3{background:rgba(192,54,75,.32)}
+.cell.today{border-color:var(--gold);background:linear-gradient(160deg,rgba(212,176,106,.28),rgba(212,176,106,.08));box-shadow:0 0 0 1px rgba(212,176,106,.5),0 8px 20px rgba(212,176,106,.18)}
+.cell.today.sel{border-color:var(--tx)}
+.cell.today .num{color:var(--bg);background:var(--gold);border-radius:50%;width:24px;height:24px;display:grid;place-items:center;margin:-2px 0 0 -2px;font-size:.84rem}
+.tabs{align-items:end}
+.tab.plus,.plus{width:60px;height:60px;border-radius:50%;border:0;background:var(--ac);color:#fff;display:grid;place-items:center;justify-self:center;align-self:start;margin-top:-26px;box-shadow:0 8px 22px rgba(192,54,75,.5),0 0 0 4px var(--bg);cursor:pointer;transition:transform .12s ease,opacity .2s ease}
+.plus:active{transform:scale(.92)}
+.phone.locked .plus{opacity:0;pointer-events:none}
+@media (prefers-reduced-motion:reduce){.plus{transition:none}}
