@@ -1,4 +1,4 @@
-import {TYPES,MESI,GIORNI,DOW,isoDate,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,flowOf,MOMENTS,fasciaOf,whoOf,TOGETHER_SINCE,balance,monthKey,monthsStats,prevMonthKey,prevOf,daysTogether,togetherLabel,heatMap,weekdayCounts,records} from './logic.js';
+import {TYPES,MESI,GIORNI,DOW,isoDate,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,flowOf,MOMENTS,fasciaOf,whoOf,TOGETHER_SINCE,balance,monthKey,monthsStats,prevMonthKey,prevOf,daysTogether,togetherLabel,heatMap,weekdayCounts,records,momentCounts} from './logic.js';
 import {SPRITE} from './icons.js';
 import * as api from './api.js';
 import {fetchSignature,shortVersion} from './update.js';
@@ -463,10 +463,15 @@ function heatHtml(){
     +gitMap(h,sel)+strip+det+wdh+'</div>';
 }
 
+function favMomentTile(){
+  const c=momentCounts(st.all,null);
+  return '<div class="wide"><small>MOMENTO PREFERITO</small><b>'+(c.fav?momLabel(c.fav):'-')+'</b><small>'+(c.fav?c[c.fav]+' atti':'nessun atto con momento')+'</small></div>';
+}
+
 function recHtml(){
   const r=records(st.all,since(),todayIso);
   const bd=r.bestDay.iso?Number(r.bestDay.iso.slice(8))+' '+MESI_BREVI[Number(r.bestDay.iso.slice(5,7))-1].toLowerCase():'-';
-  return '<div class="hrec"><div><small>GIORNO RECORD</small><b>'+bd+'</b><small>'+r.bestDay.n+' atti</small></div><div><small>SERIE PIÙ LUNGA</small><b>'+r.longestStreak+(r.longestStreak===1?' giorno':' giorni')+'</b><small>di fila</small></div><div><small>GIORNO PREFERITO</small><b>'+(r.favWeekday===null?'-':DOW_FULL[r.favWeekday])+'</b><small>'+r.favCount+' atti</small></div><div><small>GIORNI CON ATTI</small><b>'+Math.round(r.activeDays/Math.max(r.totalDays,1)*100)+'%</b><small>'+r.activeDays+' su '+r.totalDays+'</small></div></div>';
+  return '<div class="hrec"><div><small>GIORNO RECORD</small><b>'+bd+'</b><small>'+r.bestDay.n+' atti</small></div><div><small>SERIE PIÙ LUNGA</small><b>'+r.longestStreak+(r.longestStreak===1?' giorno':' giorni')+'</b><small>di fila</small></div><div><small>GIORNO PREFERITO</small><b>'+(r.favWeekday===null?'-':DOW_FULL[r.favWeekday])+'</b><small>'+r.favCount+' atti</small></div><div><small>GIORNI CON ATTI</small><b>'+Math.round(r.activeDays/Math.max(r.totalDays,1)*100)+'%</b><small>'+r.activeDays+' su '+r.totalDays+'</small></div>'+favMomentTile()+'</div>';
 }
 
 function statsKeys(){
@@ -506,6 +511,17 @@ function splitCard(title,c){
 function weekdayHtml(wd,title){
   const mx=Math.max(...wd,1);
   return '<div class="s-card"><div class="lab">'+title+'</div><div class="hwd">'+wd.map((v,i)=>'<div'+(v===mx&&v>0?' class="mx"':'')+'><b>'+v+'</b><i style="height:'+Math.round(v/mx*54)+'px"></i><span>'+DOW[i]+'</span></div>').join('')+'</div></div>';
+}
+
+function momentHtml(c){
+  const tot=MOMENTS.reduce((a,m)=>a+c[m.k],0);
+  const mx=Math.max(...MOMENTS.map(m=>c[m.k]),1);
+  let h='<div class="s-card"><div class="lab">Momento della giornata</div><div class="mom">'+MOMENTS.map(m=>{
+    const n=c[m.k];
+    return '<div class="mrow'+(c.fav===m.k?' mx':'')+'">'+MIC[m.k]+'<span class="mn">'+m.label+'<small>'+m.range+'</small></span><span class="mbar"><i style="width:'+Math.round(n/mx*100)+'%"></i></span><b>'+n+'</b><em>'+(tot?Math.round(n/tot*100):0)+'%</em></div>';
+  }).join('')+'</div>';
+  if(c.none) h+='<div class="mnone">'+MIC.nd+'<span>Senza momento</span><b>'+c.none+'</b></div>';
+  return h+'</div>';
 }
 
 function dayCells(y,m,sel){
@@ -554,6 +570,7 @@ function monthView(list){
   const bal=balHtml(cur.counts);
   if(bal) h+='<div class="s-card"><div class="lab">Bilancio del mese</div>'+bal+'</div>';
   h+=weekdayHtml(weekdayCounts(st.all,sel),'Giorni della settimana');
+  h+=momentHtml(momentCounts(st.all,sel));
   return h;
 }
 
@@ -574,6 +591,7 @@ function allView(list){
   h+=splitCard('Totali',tot.counts);
   const bal=balHtml(tot.counts);
   if(bal) h+='<div class="s-card"><div class="lab">Bilancio da sempre</div>'+bal+'</div>';
+  h+=momentHtml(momentCounts(st.all,null));
   h+='<div class="s-card"><div class="lab">Record e abitudini</div>'+recHtml()+'</div>';
   return h;
 }
@@ -590,6 +608,7 @@ function statsSkeleton(v){
       +skCard(true,skSplit())
       +skCard(true,skb(220))
       +skCard(true,skb(70))
+      +skCard(true,skb(120))
       +skCard(true,skb(120));
   }
   return skCard(false,skb(38,150)+skb(12,200))
@@ -597,6 +616,7 @@ function statsSkeleton(v){
     +skCard(true,skb(178)+skb(44))
     +skCard(true,skSplit())
     +skCard(true,skb(60))
+    +skCard(true,skb(120))
     +skCard(true,skb(90));
 }
 

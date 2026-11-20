@@ -211,6 +211,18 @@ export function weekdayCounts(events,key){
   return w;
 }
 
+export function momentCounts(events,key){
+  const c={mat:0,pom:0,ser:0,not:0,none:0};
+  events.forEach(e=>{
+    if(key&&monthKey(e.event_date)!==key) return;
+    if(e.moment&&e.moment in c) c[e.moment]++;
+    else c.none++;
+  });
+  const max=Math.max(...MOMENTS.map(m=>c[m.k]));
+  c.fav=max>0?MOMENTS.find(m=>c[m.k]===max).k:null;
+  return c;
+}
+
 export function records(events,startIso,todayIso){
   const DAY=864e5;
   const day=iso=>{const [y,m,d]=iso.split('-').map(Number);return Date.UTC(y,m-1,d);};

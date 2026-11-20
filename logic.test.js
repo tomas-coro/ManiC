@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {TYPES,pad,isoDate,flowOf,balance,monthKey,monthsStats,prevMonthKey,deltas,prevOf,daysTogether,togetherLabel,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice,MOMENTS,fasciaOf,whoOf,heatMap,weekdayCounts,records} from './logic.js';
+import {TYPES,pad,isoDate,flowOf,balance,monthKey,monthsStats,prevMonthKey,deltas,prevOf,daysTogether,togetherLabel,monthGrid,monthRange,typesOnDay,countsOnDay,monthStats,daysSince,agoLabel,whoLabel,whoFromChoice,MOMENTS,fasciaOf,whoOf,heatMap,weekdayCounts,records,momentCounts} from './logic.js';
 
 test('pad aggiunge lo zero',()=>{
   assert.equal(pad(3),'03');
@@ -236,4 +236,25 @@ test('MOMENTS ha le 4 fasce in ordine',()=>{
 
 test('whoOf: pompino a p1, leccata e ditalini a p2, sesso e anale both',()=>{
   assert.deepEqual(TYPES.map(whoOf),['both','p1','p2','both','p2']);
+});
+
+test('momentCounts conta per fascia, filtra per mese e tiene a parte gli atti senza fascia',()=>{
+  const ev=[
+    {event_date:'2026-11-10',moment:'mat'},
+    {event_date:'2026-11-11',moment:'ser'},
+    {event_date:'2026-11-12',moment:'ser'},
+    {event_date:'2026-11-13',moment:null},
+    {event_date:'2026-11-14'},
+    {event_date:'2026-10-05',moment:'not'}
+  ];
+  assert.deepEqual(momentCounts(ev,'2026-11'),{mat:1,pom:0,ser:2,not:0,none:2,fav:'ser'});
+  assert.deepEqual(momentCounts(ev,null),{mat:1,pom:0,ser:2,not:1,none:2,fav:'ser'});
+});
+
+test('momentCounts: parita = prima fascia in ordine, nessun atto con fascia = fav null',()=>{
+  const tie=[{event_date:'2026-11-10',moment:'pom'},{event_date:'2026-11-11',moment:'not'}];
+  assert.equal(momentCounts(tie,null).fav,'pom');
+  const none=[{event_date:'2026-11-10',moment:null}];
+  assert.deepEqual(momentCounts(none,null),{mat:0,pom:0,ser:0,not:0,none:1,fav:null});
+  assert.equal(momentCounts([],null).fav,null);
 });
