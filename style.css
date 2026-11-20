@@ -5,7 +5,7 @@ button,.cell{touch-action:manipulation;-webkit-user-select:none;user-select:none
 :root{
   --bg:#160a0c;--sf:#211114;--sf2:#2a1519;--ln:#3b1c21;--tx:#ecdcd4;--dm:#a8928c;--ac:#c0364b;--gold:#d4b06a;
   --c-sesso:#d6405a;--c-pompino:#e0924c;--c-leccata:#e27aa0;--c-anale:#a766c4;--c-ditalini:#4fb3a9;
-  --fd:"Bricolage Grotesque",sans-serif;--fb:"Sora",sans-serif;--r:12px;
+  --sb:max(4px,calc(env(safe-area-inset-bottom) - 16px));--fd:"Bricolage Grotesque",sans-serif;--fb:"Sora",sans-serif;--r:12px;
 }
 button,input{font-family:inherit}
 body{background:var(--bg);color:var(--tx);font-family:var(--fb);-webkit-font-smoothing:antialiased}
@@ -198,7 +198,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--fb);-webkit-font-smo
 .filters{margin-bottom:8px}
 .dow{margin-bottom:4px}
 .hd-back{display:block;text-align:center;margin-bottom:10px}
-.tabs{flex:none;display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--ln);background:var(--bg);padding-bottom:max(6px,env(safe-area-inset-bottom))}
+.tabs{flex:none;display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--ln);background:var(--bg);padding-bottom:var(--sb)}
 .tab{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:56px;border:0;background:none;color:var(--dm);font-size:.66rem;letter-spacing:.04em;cursor:pointer;transition:color .15s ease}
 .tab[aria-current="true"]{color:var(--gold)}
 .tab .dot{position:absolute;top:9px;left:calc(50% + 8px);width:8px;height:8px;border-radius:50%;background:var(--ac)}
@@ -264,9 +264,9 @@ body{background:var(--bg);color:var(--tx);font-family:var(--fb);-webkit-font-smo
 .sx .hrec b{display:block;font-family:var(--fd);font-weight:800;font-size:1.05rem;line-height:1.2}
 .sx .hrec small{font-size:.62rem;color:var(--dm);letter-spacing:.05em}
 
-.tabs{position:absolute;left:0;right:0;bottom:0;z-index:5;background:rgba(22,10,12,.72);-webkit-backdrop-filter:saturate(1.6) blur(18px);backdrop-filter:saturate(1.6) blur(18px);border-top:.5px solid rgba(236,220,212,.14);padding-bottom:max(6px,env(safe-area-inset-bottom))}
-.main{padding-bottom:calc(68px + max(6px,env(safe-area-inset-bottom)))}
-@media (max-width:500px){.main{padding-bottom:calc(68px + max(6px,env(safe-area-inset-bottom)))}}
+.tabs{position:absolute;left:0;right:0;bottom:0;z-index:5;background:rgba(22,10,12,.72);-webkit-backdrop-filter:saturate(1.6) blur(18px);backdrop-filter:saturate(1.6) blur(18px);border-top:.5px solid rgba(236,220,212,.14);padding-bottom:var(--sb)}
+.main{padding-bottom:calc(68px + var(--sb))}
+@media (max-width:500px){.main{padding-bottom:calc(68px + var(--sb))}}
 .tab{min-height:54px;-webkit-tap-highlight-color:transparent;transition:color .2s ease,transform .12s ease}
 .tab:active{transform:scale(.92)}
 .tab svg{transition:stroke-width .2s ease,fill-opacity .2s ease}
@@ -274,7 +274,7 @@ body{background:var(--bg);color:var(--tx);font-family:var(--fb);-webkit-font-smo
 .tab[aria-current="true"] span{font-weight:600}
 @keyframes tabpop{0%{transform:scale(.8)}60%{transform:scale(1.14)}100%{transform:scale(1)}}
 
-.toast{position:absolute;left:50%;bottom:calc(72px + max(6px,env(safe-area-inset-bottom)));transform:translateX(-50%);z-index:30;max-width:calc(100% - 32px);padding:11px 18px;border-radius:999px;background:rgba(42,21,25,.92);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:.5px solid rgba(212,176,106,.35);color:var(--tx);font-size:.86rem;font-weight:600;white-space:nowrap;pointer-events:none;animation:toastin .26s cubic-bezier(.22,.8,.3,1)}
+.toast{position:absolute;left:50%;bottom:calc(72px + var(--sb));transform:translateX(-50%);z-index:30;max-width:calc(100% - 32px);padding:11px 18px;border-radius:999px;background:rgba(42,21,25,.92);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:.5px solid rgba(212,176,106,.35);color:var(--tx);font-size:.86rem;font-weight:600;white-space:nowrap;pointer-events:none;animation:toastin .26s cubic-bezier(.22,.8,.3,1)}
 .toast.out{opacity:0;transform:translateX(-50%) translateY(8px);transition:opacity .2s ease,transform .2s ease}
 @keyframes toastin{from{opacity:0;transform:translateX(-50%) translateY(14px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 .cta:not(:disabled):active,.today-btn:active,.link:active,.fl:active,.cell:active,.stp-b:not(:disabled):active,.ev-del:active,.hfl button:active,.upd button:active{transform:scale(.96);transition:transform .08s ease}
