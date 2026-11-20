@@ -6,8 +6,21 @@ import {saveCache,loadCache,clearCache} from './cache.js';
 import {validPin,hasPin,setPin,checkPin,pinLength,lockLeft,failsLeft,recordFail,clearFails} from './pin.js';
 
 const root=document.getElementById('root');
+const LOCK_KEY='manic-autolock';
+const COVER_KEY='manic-cover';
+const LOCK_OPTS=[['subito','Subito',0],['1','1 min',60000],['5','5 min',300000]];
 let now=new Date();
 let todayIso=isoDate(now.getFullYear(),now.getMonth(),now.getDate());
+
+const since=()=>st.since||TOGETHER_SINCE;
+const lockOpt=()=>{let v=null;try{v=localStorage.getItem(LOCK_KEY);}catch(e){console.warn('preferenza illeggibile',e);}return LOCK_OPTS.find(o=>o[0]===v)||LOCK_OPTS[1];};
+const coverOn=()=>{try{return localStorage.getItem(COVER_KEY)!=='0';}catch(e){console.warn('preferenza illeggibile',e);return true;}};
+function setPref(k,v){
+  try{localStorage.setItem(k,v);}catch(e){
+    console.warn('preferenza non salvata',e);
+    throw new Error('Impossibile salvare la preferenza su questo telefono');
+  }
+}
 
 function tick(){
   now=new Date();
@@ -27,6 +40,9 @@ const st={
   allLoading:false,
   page:null,
   editName:null,
+  since:null,
+  editSince:false,
+  pwOpen:false,
   statsView:'mese',
   statsMo:null,
   statsDay:null,
@@ -290,7 +306,12 @@ const SET_ICO={
   lock:'<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
   shield:'<svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/></svg>',
   clock:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg>',
-  sync:'<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>'
+  sync:'<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>',
+  heart:'<svg viewBox="0 0 24 24"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/></svg>',
+  timer:'<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 3h6"/></svg>',
+  eye:'<svg viewBox="0 0 24 24"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.6"/><path d="M4 4l16 16"/></svg>',
+  key:'<svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3"/></svg>',
+  down:'<svg viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>'
 };
 
 function setRow(act,ico,label,right,extra){
@@ -306,15 +327,42 @@ function nameRow(who,label,name,slot){
   return '<button class="s-r" data-act="edit-name" data-v="'+who+'">'+av+'<span class="s-l">'+label+'</span><span class="s-v">'+esc(name)+'</span><span class="s-c">&rsaquo;</span></button>';
 }
 
+function sinceRow(){
+  const [y,m,d]=since().split('-').map(Number);
+  if(st.editSince){
+    return '<div class="s-edit"><span class="s-ico">'+SET_ICO.heart+'</span><input class="note" type="date" max="'+todayIso+'" value="'+since()+'" data-since aria-label="Insieme da"><button class="s-sv" data-act="save-since">Salva</button><button class="s-cn" data-act="cancel-since" aria-label="Annulla">&times;</button></div>';
+  }
+  return setRow('edit-since',SET_ICO.heart,'Insieme da',d+' '+MESI_BREVI[m-1].toLowerCase()+' '+y);
+}
+function lockBlock(){
+  const cur=lockOpt();
+  return '<div class="s-r col"><div class="s-rr"><span class="s-ico">'+SET_ICO.timer+'</span><span class="s-l">Blocco automatico</span><span class="s-v">'+cur[1]+'</span></div>'
+    +'<div class="s-sg" role="group" aria-label="Blocco automatico">'+LOCK_OPTS.map(o=>'<button data-act="autolock" data-v="'+o[0]+'" aria-pressed="'+(o[0]===cur[0])+'">'+o[1]+'</button>').join('')+'</div>'
+    +'<small class="s-hint">Quanto tempo può stare in background prima di chiedere il PIN.</small></div>';
+}
+function coverRow(){
+  return '<div class="s-r"><span class="s-ico">'+SET_ICO.eye+'</span><span class="s-l">Copri schermata<small class="s-sub">Nel selettore app dell\'iPhone non si vede il calendario</small></span><button class="s-tgl" role="switch" aria-checked="'+coverOn()+'" data-act="toggle-cover" aria-label="Copri schermata in background"><i></i></button></div>';
+}
+function pwBlock(){
+  if(!st.pwOpen) return setRow('edit-pw',SET_ICO.key,'Cambia password','');
+  const f=(k,ph,ac)=>'<input class="note" type="password" data-pw="'+k+'" placeholder="'+ph+'" autocomplete="'+ac+'" aria-label="'+ph+'">';
+  return '<div class="s-pw">'+f('pw-cur','Password attuale','current-password')+f('pw-new','Nuova password (almeno 8 caratteri)','new-password')+f('pw-rep','Ripeti la nuova password','new-password')
+    +'<div class="s-pwb"><button class="s-sv" data-act="save-pw">Cambia password</button><button class="s-cn" data-act="cancel-pw" aria-label="Annulla">&times;</button></div></div>';
+}
 function settings(){
   const n=names();
   const other=st.members.find(x=>x.user_id!==st.me.user_id);
   const mySlot=st.me.slot;
+  const ini=v=>esc((v||'?').trim().charAt(0).toUpperCase()||'?');
+  const [y,m,d]=since().split('-').map(Number);
+  const hero='<div class="s-hero"><span class="s-avs"><span class="s-av big">'+ini(n[1])+'</span><span class="s-av big two">'+ini(n[2])+'</span></span><div class="s-ht"><b>'+esc(n[1])+' e '+esc(n[2])+'</b><small>insieme dal '+d+' '+MESI[m-1].toLowerCase()+' '+y+'</small></div><div class="s-hn"><b>'+daysTogether(since(),todayIso)+'</b><small>giorni</small></div></div>';
   const upd=st.updReady
     ?'<button class="s-r gold" data-act="upd-reload"><span class="s-ico">'+SET_ICO.sync+'</span><span class="s-l">Aggiorna ora</span><span class="s-v">'+esc(st.updMsg||'Nuova versione')+'</span></button>'
     :setRow('check-update',SET_ICO.sync,'Controlla aggiornamenti',esc(st.updMsg));
-  return '<div class="s-gl">Profilo</div><div class="s-grp">'+nameRow('me','Il tuo nome',n[mySlot],mySlot)+nameRow('other','Il suo nome',other?other.display_name:'',mySlot===1?2:1)+'</div>'
-    +'<div class="s-gl">Sicurezza</div><div class="s-grp">'+setRow('change-pin',SET_ICO.lock,'Cambia PIN','')+setRow('lock-now',SET_ICO.shield,'Blocca ora','')+'</div>'
+  return hero
+    +'<div class="s-gl">Profilo</div><div class="s-grp">'+nameRow('me','Il tuo nome',n[mySlot],mySlot)+nameRow('other','Il suo nome',other?other.display_name:'',mySlot===1?2:1)+sinceRow()+'</div>'
+    +'<div class="s-gl">Sicurezza</div><div class="s-grp">'+setRow('change-pin',SET_ICO.lock,'Cambia PIN',pinLength(localStorage)?pinLength(localStorage)+' cifre':'')+lockBlock()+coverRow()+pwBlock()+setRow('lock-now',SET_ICO.shield,'Blocca ora','')+'</div>'
+    +'<div class="s-gl">Dati</div><div class="s-grp">'+setRow('export',SET_ICO.down,'Esporta backup','File JSON')+'</div>'
     +'<div class="s-gl">App</div><div class="s-grp"><div class="s-r static"><span class="s-ico">'+SET_ICO.clock+'</span><span class="s-l">Versione</span><span class="s-v">'+esc(st.version||'...')+'</span></div>'+upd+'</div>'
     +'<div class="s-gl">Account</div><div class="s-grp"><button class="s-r red" data-act="logout">Esci dall\'account</button></div>'
     +'<p class="s-ft">ManiC &middot; solo per voi due</p>';
@@ -349,8 +397,8 @@ function stackHtml(s){
 }
 
 function togetherHtml(){
-  const [y,m,d]=TOGETHER_SINCE.split('-').map(Number);
-  return '<div class="tg"><b>'+daysTogether(TOGETHER_SINCE,todayIso)+'</b><span><i>giorni insieme</i>dal '+d+' '+MESI[m-1].toLowerCase()+' '+y+' · '+togetherLabel(TOGETHER_SINCE,todayIso)+'</span></div>';
+  const [y,m,d]=since().split('-').map(Number);
+  return '<div class="tg"><b>'+daysTogether(since(),todayIso)+'</b><span><i>giorni insieme</i>dal '+d+' '+MESI[m-1].toLowerCase()+' '+y+' · '+togetherLabel(since(),todayIso)+'</span></div>';
 }
 
 const MESI_BREVI=['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
@@ -388,16 +436,16 @@ function gitMap(h,sel){
 }
 
 function recentMap(){
-  const h=heatMap(st.all,TOGETHER_SINCE,todayIso,HEAT_WEEKS);
+  const h=heatMap(st.all,since(),todayIso,HEAT_WEEKS);
   return '<div class="s-card"><div class="lab">Mappa dei giorni <span class="sub">ultime '+h.cols+' settimane</span></div>'+gitMap(h,null)+'</div>';
 }
 
 function heatHtml(){
   const f=st.heatF;
   const evs=f?st.all.filter(e=>e.type===f):st.all;
-  const h=heatMap(evs,TOGETHER_SINCE,todayIso,HEAT_WEEKS);
+  const h=heatMap(evs,since(),todayIso,HEAT_WEEKS);
   const list=monthsStats(st.all);
-  const keys=monthKeysFrom(TOGETHER_SINCE,todayIso).slice(-HEAT_MONTHS);
+  const keys=monthKeysFrom(since(),todayIso).slice(-HEAT_MONTHS);
   const sel=st.heatMo&&keys.includes(st.heatMo)?st.heatMo:keys[keys.length-1];
   const cur=monthEntry(sel,list);
   const pk=prevMonthKey(cur.y,cur.m);
@@ -416,13 +464,13 @@ function heatHtml(){
 }
 
 function recHtml(){
-  const r=records(st.all,TOGETHER_SINCE,todayIso);
+  const r=records(st.all,since(),todayIso);
   const bd=r.bestDay.iso?Number(r.bestDay.iso.slice(8))+' '+MESI_BREVI[Number(r.bestDay.iso.slice(5,7))-1].toLowerCase():'-';
   return '<div class="hrec"><div><small>GIORNO RECORD</small><b>'+bd+'</b><small>'+r.bestDay.n+' atti</small></div><div><small>SERIE PIÙ LUNGA</small><b>'+r.longestStreak+(r.longestStreak===1?' giorno':' giorni')+'</b><small>di fila</small></div><div><small>GIORNO PREFERITO</small><b>'+(r.favWeekday===null?'-':DOW_FULL[r.favWeekday])+'</b><small>'+r.favCount+' atti</small></div><div><small>GIORNI CON ATTI</small><b>'+Math.round(r.activeDays/Math.max(r.totalDays,1)*100)+'%</b><small>'+r.activeDays+' su '+r.totalDays+'</small></div></div>';
 }
 
 function statsKeys(){
-  return monthKeysFrom(TOGETHER_SINCE,todayIso);
+  return monthKeysFrom(since(),todayIso);
 }
 
 function statsSel(keys){
@@ -473,7 +521,7 @@ function dayCells(y,m,sel){
   for(let i=0;i<offset;i++) h+='<span class="e pad"></span>';
   for(let d=1;d<=days;d++){
     const iso=isoDate(y,m,d);
-    if(iso>todayIso||iso<TOGETHER_SINCE){h+='<span class="e nx">'+d+'</span>';continue;}
+    if(iso>todayIso||iso<since()){h+='<span class="e nx">'+d+'</span>';continue;}
     const n=per[iso]?TYPES.reduce((a,t)=>a+(per[iso][t]||0),0):0;
     const lv=n>=3?'l3':n===2?'l2':n===1?'l1':'';
     h+='<button class="'+lv+(iso===todayIso?' td':'')+(iso===sel?' sl':'')+'" data-act="sd" data-v="'+iso+'" aria-pressed="'+(iso===sel)+'" aria-label="'+d+' '+MESI[m]+': '+n+' atti">'+d+'</button>';
@@ -824,7 +872,7 @@ function lastFromAll(){
 }
 
 function persist(){
-  if(st.me&&st.all&&st.session) saveCache(localStorage,{uid:st.session.user.id,me:st.me,members:st.members,all:st.all,at:st.syncAt});
+  if(st.me&&st.all&&st.session) saveCache(localStorage,{uid:st.session.user.id,me:st.me,members:st.members,all:st.all,since:st.since,at:st.syncAt});
 }
 
 function goOffline(){
@@ -859,6 +907,7 @@ async function loadAll(){
       if(!me) throw new Error('Questo account non è collegato a nessuna coppia');
       if(gen!==st.gen) return;
       st.members=members;st.me=me;
+      st.since=await api.loadSince();
     }
     const {from,to}=monthRange(st.y,st.m);
     const events=await api.loadEvents(from,to);
@@ -906,7 +955,7 @@ async function enterApp(){
   st.error='';
   const c=loadCache(localStorage,st.session.user.id);
   if(c){
-    Object.assign(st,{me:c.me,members:c.members,all:c.all,syncAt:c.at,fromCache:true});
+    Object.assign(st,{me:c.me,members:c.members,all:c.all,since:c.since||null,syncAt:c.at,fromCache:true});
     st.events=monthFromAll();
     st.lastDate=lastFromAll();
   }
@@ -1001,7 +1050,7 @@ async function signOutNow(){
   localStorage.removeItem('manic-pin-len');
   clearFails(localStorage);
   allGen++;
-  Object.assign(st,{screen:'login',session:null,offline:false,fromCache:false,syncAt:null,members:[],me:null,events:[],all:null,allErr:'',allLoading:false,page:null,editName:null,statsView:'mese',statsMo:null,statsDay:null,heatF:null,heatMo:null,recapOff:false,sheet:null,pin:'',pinFirst:'',pinBusy:false,forgot:false,error:''});
+  Object.assign(st,{screen:'login',session:null,offline:false,fromCache:false,syncAt:null,members:[],me:null,events:[],all:null,allErr:'',allLoading:false,page:null,editName:null,since:null,editSince:false,pwOpen:false,statsView:'mese',statsMo:null,statsDay:null,heatF:null,heatMo:null,recapOff:false,sheet:null,pin:'',pinFirst:'',pinBusy:false,forgot:false,error:''});
 }
 
 function autoMom(){
@@ -1047,6 +1096,32 @@ function patchEvent(id,patch){
 }
 
 const OFFLINE_MSG='Sei offline: serve la rete per modificare';
+
+async function exportBackup(){
+  if(!st.all){
+    await loadStats();
+    if(!st.all) throw new Error(st.allErr||'Dati non ancora caricati');
+  }
+  const data={app:'ManiC',exportedAt:new Date().toISOString(),togetherSince:since(),members:st.members.map(m=>({slot:m.slot,name:m.display_name})),events:st.all.slice().sort((a,b)=>a.event_date<b.event_date?-1:a.event_date>b.event_date?1:0).map(e=>({date:e.event_date,type:e.type,who:e.who,moment:e.moment||null,note:e.note||''}))};
+  const name='manic-backup-'+todayIso+'.json';
+  const file=new File([JSON.stringify(data,null,2)],name,{type:'application/json'});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+    try{
+      await navigator.share({files:[file],title:'Backup ManiC'});
+      toast('Backup pronto');
+      return;
+    }catch(e){
+      if(e&&e.name==='AbortError') return;
+      console.warn('condivisione non riuscita, scarico il file',e);
+    }
+  }
+  const url=URL.createObjectURL(file);
+  const a=document.createElement('a');
+  a.href=url;a.download=name;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
+  toast('Backup scaricato');
+}
 
 async function handle(act,t){
   if(act==='pin-digit'){
@@ -1152,7 +1227,7 @@ async function handle(act,t){
     st.addTouched=true;
     st.addMom=st.addMom===t.dataset.v?null:t.dataset.v;
   }
-  else if(st.offline&&(act==='save'||act==='del'||act==='save-name'||act==='emom'||act==='undo')){
+  else if(st.offline&&(act==='save'||act==='del'||act==='save-name'||act==='save-since'||act==='save-pw'||act==='emom'||act==='undo')){
     showError(new Error(OFFLINE_MSG));
     return;
   }
@@ -1227,7 +1302,35 @@ async function handle(act,t){
       toast('Ripristinato');
     }
   }
-  else if(act==='edit-name'){st.editName=t.dataset.v;}
+  else if(act==='edit-name'){st.editName=t.dataset.v;st.editSince=false;st.pwOpen=false;}
+  else if(act==='edit-since'){st.editSince=true;st.editName=null;st.pwOpen=false;}
+  else if(act==='cancel-since'){st.editSince=false;}
+  else if(act==='save-since'){
+    const v=root.querySelector('[data-since]').value;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(v)||v>todayIso){showError(new Error('Scegli una data valida, non nel futuro'));return;}
+    if(!st.all){showError(new Error('Dati non ancora caricati, riprova tra un attimo'));return;}
+    const first=st.all.reduce((mn,e)=>!mn||e.event_date<mn?e.event_date:mn,null);
+    if(first&&first<v){showError(new Error('Hai già degli atti prima di questa data: il primo è del '+first.split('-').reverse().join('/')));return;}
+    await api.setSince(st.me.couple_id,v);
+    st.since=v;st.editSince=false;
+    persist();
+    toast('Data salvata');
+  }
+  else if(act==='edit-pw'){st.pwOpen=true;st.editName=null;st.editSince=false;}
+  else if(act==='cancel-pw'){st.pwOpen=false;}
+  else if(act==='save-pw'){
+    const [cur,nw,rep]=['pw-cur','pw-new','pw-rep'].map(k=>root.querySelector('[data-pw="'+k+'"]').value);
+    if(!cur){showError(new Error('Scrivi la password attuale'));return;}
+    if(nw.length<8){showError(new Error('La nuova password deve avere almeno 8 caratteri'));return;}
+    if(nw!==rep){showError(new Error('Le due password nuove non coincidono'));return;}
+    if(nw===cur){showError(new Error('La nuova password deve essere diversa da quella attuale'));return;}
+    await api.changePassword(st.session.user.email,cur,nw);
+    st.pwOpen=false;
+    toast('Password cambiata');
+  }
+  else if(act==='autolock'){setPref(LOCK_KEY,t.dataset.v);}
+  else if(act==='toggle-cover'){setPref(COVER_KEY,coverOn()?'0':'1');}
+  else if(act==='export'){await exportBackup();return;}
   else if(act==='cancel-name'){st.editName=null;}
   else if(act==='save-name'){
     const who=t.dataset.v;
@@ -1353,10 +1456,23 @@ if('serviceWorker' in navigator){
 }
 
 setInterval(()=>{if(!document.hidden) checkUpdate(false);},120000);
+let hiddenAt=0;
 document.addEventListener('visibilitychange',()=>{
-  if(document.hidden) return;
+  if(document.hidden){
+    hiddenAt=Date.now();
+    if(coverOn()) document.documentElement.classList.add('covered');
+    return;
+  }
+  document.documentElement.classList.remove('covered');
+  const away=hiddenAt?Date.now()-hiddenAt:0;
+  hiddenAt=0;
   const was=todayIso;
   tick();
+  if(st.screen==='app'&&hasPin(localStorage)&&away>=lockOpt()[2]){
+    st.screen='lock';st.pin='';st.sheet=null;st.page=null;
+    render();
+    return;
+  }
   if(was!==todayIso&&st.screen==='app') render();
   checkUpdate(false);
 });

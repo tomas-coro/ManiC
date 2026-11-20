@@ -93,3 +93,26 @@ export async function renameMember(userId,displayName){
   fail(error,'Nome non salvato');
   if(!data.length) throw new Error('Nome non salvato');
 }
+
+export async function loadSince(){
+  const {data,error}=await sb.from('couples').select('together_since').limit(1);
+  fail(error,'Impossibile leggere la data di coppia');
+  if(!data.length||!data[0].together_since) throw new Error('Data di coppia non trovata');
+  return data[0].together_since;
+}
+
+export async function setSince(coupleId,iso){
+  const {data,error}=await sb.from('couples').update({together_since:iso}).eq('id',coupleId).select('id');
+  fail(error,'Data non salvata');
+  if(!data.length) throw new Error('Data non salvata');
+}
+
+export async function changePassword(email,current,next){
+  const {error:e1}=await sb.auth.signInWithPassword({email,password:current});
+  if(e1){
+    if(e1.message&&e1.message.toLowerCase().includes('invalid login')) throw new Error('La password attuale non è corretta');
+    fail(e1,'Verifica della password non riuscita');
+  }
+  const {error}=await sb.auth.updateUser({password:next});
+  fail(error,'Password non cambiata');
+}
